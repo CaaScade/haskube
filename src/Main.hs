@@ -20,38 +20,25 @@ import qualified Data.Text              as T
 
 import           Data.Maybe             (fromJust, fromMaybe, isJust)
 
-swaggerVal :: IO AE.Value
-swaggerVal = do
-  swaggerText <- BS.readFile "swagger.json"
-  return . fromJust $ AE.decode swaggerText
-
-parseSwaggerVal :: AE.Value -> (Either String S.Swagger)
-parseSwaggerVal =
+parseSwagger :: AE.Value -> (Either String S.Swagger)
+parseSwagger =
   parseEither AE.parseJSON . setType
   where definitionType = AE.key "definitions" . AE.members . AE._Object . at "type"
         setType :: AE.Value -> AE.Value
         setType = definitionType %~ Just . fromMaybe "object"
 
-swaggerVal' :: IO (Either String S.Swagger)
-swaggerVal' = do
-  swaggerText <- BS.readFile "swagger.json"
-  return $ AE.eitherDecode swaggerText
-
-printSwaggerField :: (AE.Value -> AE.Value) -> IO ()
-printSwaggerField field = printSome =<< fmap field swaggerVal
+readSwagger :: FilePath -> IO S.Swagger
+readSwagger file = do
+  swaggerText <- BS.readFile file
+  let result = do
+        swaggerVal <- AE.eitherDecode swaggerText
+        parseSwagger swaggerVal
+  case result of
+    Left err -> error err
+    Right swagger -> return swagger
 
 printSome :: (Show a) => a -> IO ()
 printSome = putStrLn. take 200 . show
 
 main :: IO ()
-main = do
-  root <- swaggerVal
-  printSome $ parseSwaggerVal root
-
-fieldSwagger :: AE.Value -> AE.Value
-fieldSwagger (AE.Object root) = fromJust $ H.lookup "swagger" root
-fieldSwagger _                = error "root is an object"
-
-fieldInfo :: AE.Value -> AE.Value
-fieldInfo (AE.Object root) = fromJust $ H.lookup "info" root
-fieldInfo _                = error "root is an object"
+main = printSome =<< readSwagger "swagger.json"
