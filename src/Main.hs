@@ -14,11 +14,12 @@ import qualified Data.Aeson             as AE
 import qualified Data.Aeson.Lens        as AE
 import           Data.Aeson.Types       (parseEither)
 import qualified Data.ByteString.Lazy   as BS
-import qualified Data.HashMap.Lazy      as H
+import qualified Data.HashMap.Strict.InsOrd as HI
 import qualified Data.Swagger           as S
 import qualified Data.Text              as T
-
 import           Data.Maybe             (fromJust, fromMaybe, isJust)
+
+import Gen.AST
 
 parseSwagger :: AE.Value -> (Either String S.Swagger)
 parseSwagger =
@@ -41,4 +42,7 @@ printSome :: (Show a) => a -> IO ()
 printSome = putStrLn. take 200 . show
 
 main :: IO ()
-main = printSome =<< readSwagger "swagger.json"
+main = do
+  swag <- readSwagger "swagger.json"
+  printSome $ rewriteDefinitions $ S._swaggerDefinitions swag
+  print $ HI.lookup "io.k8s.apimachinery.pkg.api.resource.Quantity" $ S._swaggerDefinitions swag

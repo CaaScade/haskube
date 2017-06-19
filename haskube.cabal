@@ -20,8 +20,11 @@ executable haskube
   build-depends:       aeson
                      , base >= 4.7 && < 5
                      , bytestring
+                     , ede
+                     , insert-ordered-containers
                      , lens
                      , lens-aeson
+                     , parsec
                      , swagger2
                      , text
                      , unordered-containers
