@@ -24,7 +24,9 @@ executable haskube
                      , insert-ordered-containers
                      , lens
                      , lens-aeson
+                     , mtl
                      , parsec
                      , swagger2
                      , text
+                     , transformers
                      , unordered-containers
