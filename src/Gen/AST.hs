@@ -16,46 +16,16 @@ import qualified Data.Swagger               as S
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 
-import           Gen.AST.Name               (TypeName (..), arrayTypeName,
-                                             boolTypeName, integerTypeName,
-                                             keyedTypeName, numberTypeName,
-                                             referencedTypeName, stringTypeName)
+import           Gen.AST.Error
+import           Gen.AST.Name               (TypeName (..), schemaTypeName)
 
-data Newtype = Newtype
-  { _newtypeName        :: TypeName
-  , _newtypeValue       :: TypeName
-  , _newtypeDescription :: Maybe Text
-  } deriving (Show)
-
-data Field = Field
-  { _fieldName        :: Text
-  , _fieldType        :: TypeName
-  , _fieldDescription :: Maybe Text
-  } deriving (Show)
-
-data Data = Data
-  { _dataName        :: TypeName
-  , _dataFields      :: [Field]
-  , _dataDescription :: Maybe Text
-  } deriving (Show)
-
-type Type = Either Newtype Data
-
-newtype Module = Module Text
-
-mkNewtype :: S.Schema -> TypeName -> Newtype
-mkNewtype schema typeName =
-  Newtype
-  { _newtypeName = typeName
-  , _newtypeValue = stringTypeName
-  , _newtypeDescription = S._schemaDescription schema
-  }
-
-rewriteDefinitions :: S.Definitions S.Schema -> [Type]
+rewriteDefinitions :: S.Definitions S.Schema -> ASTExcept [Type]
 rewriteDefinitions definitions = rewriteDefinition <$> HI.toList definitions
 
--- TODO: http://swagger.io/specification/#dataTypeFormat
-rewriteDefinition :: (Text, S.Schema) -> Type
+-- | Figure out if this definition needs a newtype or a data declaration.
+-- TODO: This might be easier if I don't treat TypeName and Type as separate flows.
+--       I probably should account for nested object types and accumulate Types as I traverse the tree.
+rewriteDefinition :: (Text, S.Schema) -> ASTExcept Type
 rewriteDefinition (key, schema) =
   case S._paramSchemaType . S._schemaParamSchema $ schema of
     S.SwaggerString  -> Left $ mkNewtype schema stringTypeName
@@ -66,11 +36,3 @@ rewriteDefinition (key, schema) =
     S.SwaggerObject  -> _
   where
     typeName = keyedTypeName key
-
-rewriteArrayDefinition :: TypeName -> S.Schema -> TypeName
-rewriteArrayDefinition typeName arraySchema =
-  case S._paramSchemaItems . S._schemaParamSchema $ arraySchema of
-    Nothing -> error $ "arraySchema should have paramSchemaItems: " <> show arraySchema
-    Just (S.SwaggerItemsPrimitive collectionFormat_ itemParamSchema) ->
-      _
-    Just (S.SwaggerItemsObject ref) -> arrayTypeName $ referencedTypeName ref

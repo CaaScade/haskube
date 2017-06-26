@@ -1,14 +1,18 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ConstraintKinds #-}
 
 module Gen.AST.Error where
 
 import           Control.Monad.Except
 import Control.Lens
+import Control.Monad.Writer
 
 import           Data.Monoid
 import           Data.Text            (Text)
 import qualified Data.Text            as T
+
+import Gen.AST.Types
 
 data ASTError = ASTError
   { _asteStack :: [Text]
@@ -17,7 +21,11 @@ data ASTError = ASTError
 
 makeLenses ''ASTError
 
+type MonadASTError m = MonadError ASTError m
+
 type ASTExcept = Except ASTError
+type ASTBuildT m = ExceptT ASTError (WriterT [Type] m)
+type ASTBuild = ASTBuildT Identity
 
 mkASTError :: (Show a) => Text -> a -> ASTError
 mkASTError message context = ASTError [] $ message <> T.pack (show context)
