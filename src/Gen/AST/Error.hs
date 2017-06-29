@@ -22,9 +22,12 @@ data ASTError = ASTError
 makeLenses ''ASTError
 
 type MonadASTError m = MonadError ASTError m
+type MonadASTWriter m = MonadWriter ASTLog m
+type MonadAST m = (MonadASTError m, MonadASTWriter m)
 
+type ASTLog = [Type]
 type ASTExcept = Except ASTError
-type ASTBuildT m = ExceptT ASTError (WriterT [Type] m)
+type ASTBuildT m = ExceptT ASTError (WriterT ASTLog m)
 type ASTBuild = ASTBuildT Identity
 
 mkASTError :: (Show a) => Text -> a -> ASTError
@@ -36,3 +39,9 @@ throwASTError message context = throwError $ mkASTError message context
 pushASTError :: (MonadError ASTError m, Show b) => b -> m a -> m a
 pushASTError context action = catchError action (throwError . f)
   where f err = err & asteStack %~ (T.pack (show context):)
+
+tellNewtype :: (MonadASTWriter m) => Newtype -> m ()
+tellNewtype = tell . pure . Left
+
+tellData :: (MonadASTWriter m) => Data -> m ()
+tellData = tell . pure. Right

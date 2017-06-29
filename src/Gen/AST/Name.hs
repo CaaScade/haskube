@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts         #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -12,6 +12,7 @@ import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Except
+import           Control.Monad.Writer
 
 import qualified Data.HashMap.Strict.InsOrd as HI
 import           Data.Monoid
@@ -26,15 +27,6 @@ import           Text.Parsec.Text           (Parser)
 
 import           Gen.AST.Error
 import           Gen.AST.Types
-
--- #/definitions/io.k8s.apimachinery.pkg.util.intstr.IntOrString
--- #/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta
--- #/definitions/io.k8s.kubernetes.pkg.apis.extensions.v1beta1.HTTPIngressRuleValue
--- #/definitions/io.k8s.kubernetes.pkg.apis.rbac.v1alpha1.PolicyRule
--- #/definitions/io.k8s.kubernetes.pkg.apis.autoscaling.v2alpha1.CrossVersionObjectReference
--- int32
--- int64
--- string
 
 testRef :: Text
 testRef = "#/definitions/io.k8s.kubernetes.pkg.apis.autoscaling.v2alpha1.CrossVersionObjectReference"
@@ -65,17 +57,23 @@ parseKey = do
   segments <- many1 alphaNum `sepBy1` char '.'
   return . mkTypeName . fmap T.pack $ segments
 
-doParse :: Parser a -> Text -> ASTExcept a
+doParse :: (MonadASTError m) => Parser a -> Text -> m a
 doParse parser text = case runParser parser () "" text of
   Left err  -> throwASTError ("doParse on '" <> text <> "' failed: ") err
   Right val -> return val
 
-referencedTypeName :: S.Referenced S.Schema -> ASTExcept TypeName
-referencedTypeName (S.Ref ref)       = doParse parseRef $ S.getReference ref
-referencedTypeName (S.Inline schema) = throwASTError "referencedTypeName called with an inline schema: " schema
+referencedTypeName :: (MonadAST m) => Optional ExternalTypeName -> S.Referenced S.Schema -> m TypeName
+referencedTypeName typeName (S.Ref ref)       = mkNewtype' typeName =<< doParse parseRef (S.getReference ref)
+referencedTypeName typeName (S.Inline schema) = schemaTypeName typeName schema
 
-keyedTypeName :: Text -> ASTExcept TypeName
+keyedTypeName :: (MonadASTError m) => Text -> m TypeName
 keyedTypeName = doParse parseKey
+
+extendTypeName :: Text -> ExternalTypeName -> ExternalTypeName
+extendTypeName extension = over externalName (<> "_" <> extension)
+
+extendTypeName' :: Show a => a -> ExternalTypeName -> ExternalTypeName
+extendTypeName' = extendTypeName . T.pack . show
 
 -- TODO: Create newtypes for Kubernetes.Types.Base types.
 builtInNewtypesModule :: Maybe Text
@@ -95,27 +93,31 @@ dateTimeName = SimpleName (Just "Data.Time") "UTCTime"
 passwordName = SimpleName builtInNewtypesModule "Password"
 unitName = SimpleName Nothing "()"
 
-itemsSchemaTypeName :: S.SwaggerItems 'S.SwaggerKindSchema -> ASTExcept TypeName
-itemsSchemaTypeName (S.SwaggerItemsPrimitive _ paramSchema) -- Kubernetes doesn't use the collectionFormat key. (csv by default)
- = paramSchemaTypeName paramSchema
-itemsSchemaTypeName (S.SwaggerItemsObject ref) = referencedTypeName ref
-itemsSchemaTypeName (S.SwaggerItemsArray refs) = TupleName <$> mapM referencedTypeName refs
+itemsSchemaTypeName :: (MonadAST m) => Optional ExternalTypeName -> S.SwaggerItems 'S.SwaggerKindSchema -> m TypeName
+itemsSchemaTypeName typeName (S.SwaggerItemsPrimitive _ paramSchema) -- Kubernetes doesn't use the collectionFormat key. (csv by default)
+ = paramSchemaTypeName typeName paramSchema
+itemsSchemaTypeName typeName (S.SwaggerItemsObject ref) = referencedTypeName typeName ref
+itemsSchemaTypeName typeName (S.SwaggerItemsArray refs) =
+  mkNewtype' typeName =<< TupleName <$> mapM f indexedRefs
+  where
+    f (index, ref) = referencedTypeName (extendTypeName' index <$> typeName) ref
+    indexedRefs = zip [1 ..] refs
 
-integerTypeName :: Maybe S.Format -> ASTExcept TypeName
+integerTypeName :: (MonadASTError m) => Maybe S.Format -> m TypeName
 integerTypeName Nothing = throwASTError "missing format for integer" ()
 integerTypeName (Just format)
   | format == "int32" = return int32Name
   | format == "int64" = return int64Name
   | otherwise = throwASTError "unrecognized integer format: " format
 
-numberTypeName :: Maybe S.Format -> ASTExcept TypeName
+numberTypeName :: (MonadASTError m) => Maybe S.Format -> m TypeName
 numberTypeName Nothing = throwASTError "missing format for number" ()
 numberTypeName (Just format)
   | format == "float" = return floatName
   | format == "double" = return doubleName
   | otherwise = throwASTError "unrecognized number format: " format
 
-stringTypeName :: Maybe S.Format -> ASTExcept TypeName
+stringTypeName :: (MonadASTError m) => Maybe S.Format -> m TypeName
 stringTypeName Nothing = return textName
 stringTypeName (Just format)
   | format == "byte" = return base64Name
@@ -125,53 +127,80 @@ stringTypeName (Just format)
   | format == "password" = return passwordName
   | otherwise = throwASTError "unrecognized string format: " format
 
--- TODO: This is insufficient. Object type needs "properties" and "additionalProperties" to determine a TypeName.
--- TODO: (UNLIKELY) It's also possible that a property of an object may need a "data" definition.
---       We may need a write monad to keep track of these new Types.
---       NOTE: I don't imagine an autogenerated swagger schema would contain nested definitions like that.
-paramSchemaTypeName :: S.ParamSchema 'S.SwaggerKindSchema -> ASTExcept TypeName
-paramSchemaTypeName paramSchema@S.ParamSchema {..} =
+--TODO: description
+-- | Yields the TypeName to use and writes the newtype it (maybe) created.
+mkNewtype' :: (MonadAST m) => Optional ExternalTypeName -> TypeName -> m TypeName
+mkNewtype' (Optional _) value = return value
+mkNewtype' (Required name) value = do
+  tell . pure . Left $
+    Newtype
+    {_newtypeName = name, _newtypeValue = value, _newtypeDescription = Nothing}
+  return . fromExternalTypeName $ name
+
+paramSchemaTypeName :: (MonadAST m) => Optional ExternalTypeName -> S.ParamSchema 'S.SwaggerKindSchema -> m TypeName
+paramSchemaTypeName typeName paramSchema@S.ParamSchema {..} =
   pushASTError paramSchema $
   case _paramSchemaType of
-    S.SwaggerInteger -> integerTypeName $ _paramSchemaFormat
-    S.SwaggerNumber -> numberTypeName $ _paramSchemaFormat
-    S.SwaggerString -> stringTypeName $ _paramSchemaFormat
-    S.SwaggerBoolean -> return boolName
+    S.SwaggerInteger -> newtypify =<< integerTypeName _paramSchemaFormat
+    S.SwaggerNumber -> newtypify =<< numberTypeName _paramSchemaFormat
+    S.SwaggerString -> newtypify =<< stringTypeName _paramSchemaFormat
+    S.SwaggerBoolean -> newtypify boolName
     S.SwaggerArray ->
       case _paramSchemaItems of
         Nothing ->
           throwASTError
             "array paramSchema should have paramSchemaItems: "
             paramSchema
-        Just items -> ArrayName <$> itemsSchemaTypeName items
-    S.SwaggerNull -> return unitName
+        Just items ->
+          newtypify =<<
+          ArrayName <$>
+          itemsSchemaTypeName (extendTypeName "items" <$> typeName) items
+    S.SwaggerNull -> newtypify unitName
     S.SwaggerObject ->
       throwASTError "unexpected type 'object' in paramSchema: " paramSchema
+  where
+    newtypify = mkNewtype' typeName
 
+additionalPropertiesTypeName
+  :: (MonadAST m)
+  => Optional ExternalTypeName
+  -> S.Referenced S.Schema -- ^ dictionary value type (aka additionalProperties)
+  -> m TypeName
+additionalPropertiesTypeName typeName ref =
+  mkNewtype' typeName =<< DictionaryName <$> referencedTypeName (extendTypeName "value" <$> typeName) ref
+
+-- TODO: description
 -- | This declaration is a dictionary (JSON "object").
 objectTypeName
-  :: HI.InsOrdHashMap Text (S.Referenced S.Schema)
+  :: (MonadAST m)
+  => Optional ExternalTypeName
+  -> HI.InsOrdHashMap Text (S.Referenced S.Schema)
   -> Maybe (S.Referenced S.Schema)
-  -> ASTExcept TypeName
-objectTypeName properties additionalProperties
-  | HI.null properties =  case additionalProperties of
-      Nothing -> throwASTError "this object has no additional properties: " ()
-      Just ref -> DictionaryName <$> referencedTypeName ref
-  | otherwise = throwASTError "this object needs a new type declaration: " properties
+  -> m TypeName
+objectTypeName typeName properties additionalProperties = do
+  props <- mapM fieldify $ HI.toList properties
+  fields <- case additionalProperties of
+    Nothing -> return props
+    Just addlPropsValue -> (:props) <$> fieldify' addlPropsValue
+  let typeName' = fromExternalTypeName . unOptional $ typeName
+  tellData $ Data { _dataName = typeName'
+                  , _dataFields = fields
+                  , _dataDescription = Nothing }
+  return typeName'
+  where fieldify (name, ref) = do
+          fieldTypeName <- referencedTypeName (extendTypeName name <$> typeName) ref
+          return $ Field { _fieldName = Right name
+                         , _fieldType = fieldTypeName
+                         , _fieldDescription = Nothing }
+        fieldify' ref = do
+          fieldTypeName <- additionalPropertiesTypeName (extendTypeName "addlProps" <$> typeName) ref
+          return $ Field { _fieldName = Left AdditionalProperties
+                         , _fieldType = fieldTypeName
+                         , _fieldDescription = Nothing }
 
-schemaTypeName :: S.Schema -> ASTBuild TypeName
-schemaTypeName schema@S.Schema {..} =
+schemaTypeName :: (MonadAST m) => Optional ExternalTypeName -> S.Schema -> m TypeName
+schemaTypeName typeName schema@S.Schema {..} =
   pushASTError schema $
   case S._paramSchemaType _schemaParamSchema of
-    S.SwaggerObject -> objectTypeName _schemaProperties _schemaAdditionalProperties
-    _ -> paramSchemaTypeName _schemaParamSchema
-
-objectType
-  :: TypeName -- ^ name of this object type
-  -> HI.InsOrdHashMap Text (S.Referenced S.Schema) -- ^ object properties
-  -> Maybe (S.Referenced S.Schema) -- ^ object "additionalProperties"
-  -> ASTBuild () -- ^ write the generated types
-objectType = _
-
-propertyField :: Text -> S.Referenced S.Schema -> ASTBuild Field
-propertyField = _
+    S.SwaggerObject -> objectTypeName typeName _schemaProperties _schemaAdditionalProperties
+    _ -> paramSchemaTypeName typeName _schemaParamSchema
