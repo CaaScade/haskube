@@ -26,6 +26,8 @@ executable haskube
                      , lens-aeson
                      , mtl
                      , parsec
+                     , pretty
+                     , pretty-show
                      , swagger2
                      , text
                      , transformers

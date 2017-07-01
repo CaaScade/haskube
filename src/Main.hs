@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
@@ -18,8 +19,11 @@ import qualified Data.HashMap.Strict.InsOrd as HI
 import           Data.Maybe                 (fromJust, fromMaybe, isJust)
 import qualified Data.Swagger               as S
 import qualified Data.Text                  as T
+import qualified Data.Text.IO               as T
+import           Text.Show.Pretty           (pPrint)
 
 import           Gen.AST
+import           Gen.AST.Error
 
 parseSwagger :: AE.Value -> (Either String S.Swagger)
 parseSwagger =
@@ -41,8 +45,15 @@ readSwagger file = do
 printSome :: (Show a) => a -> IO ()
 printSome = putStrLn. take 200 . show
 
+printError :: ASTError -> IO ()
+printError ASTError{..} = do
+  T.putStrLn _asteLabel
+  pPrint _asteError
+  pPrint $ reverse _asteStack
+
 main :: IO ()
 main = do
   swag <- readSwagger "swagger.json"
-  printSome $ rewriteDefinitions $ S._swaggerDefinitions swag
-  print $ HI.lookup "io.k8s.apimachinery.pkg.api.resource.Quantity" $ S._swaggerDefinitions swag
+  case rewriteDefinitions $ S._swaggerDefinitions swag of
+    Left error -> printError error
+    Right types -> pPrint types

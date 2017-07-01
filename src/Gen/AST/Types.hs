@@ -12,6 +12,7 @@ data TypeName where
   ArrayName :: TypeName -> TypeName
   TupleName :: [TypeName] -> TypeName
   DictionaryName :: TypeName -> TypeName
+  MaybeName :: TypeName -> TypeName
   SimpleName :: Maybe Text -> Text -> TypeName
   deriving (Show)
 
