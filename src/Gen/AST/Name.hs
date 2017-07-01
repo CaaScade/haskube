@@ -191,8 +191,8 @@ objectTypeName typeName requiredProperties properties additionalProperties =
   where fieldify (name, ref) = pushASTError ("fieldify", (name, ref)) $ do
           fieldTypeName_ <- referencedTypeName (extendTypeName name <$> typeName) ref
           let fieldTypeName = if name `elem` requiredProperties
-                then MaybeName fieldTypeName_
-                else fieldTypeName_
+                then fieldTypeName_
+                else MaybeName fieldTypeName_
           return $ Field { _fieldName = Right name
                          , _fieldType = fieldTypeName
                          , _fieldDescription = Nothing }
