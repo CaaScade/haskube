@@ -238,7 +238,6 @@ additionalPropertiesTypeName typeName ref =
         dictDescription = labelDescription "(values:)" <$> valueDescription
     mkNewtype' typeName dictDescription dictName
 
--- TODO: description
 -- | This declaration is a dictionary (JSON "object").
 objectTypeName
   :: (MonadAST m)
