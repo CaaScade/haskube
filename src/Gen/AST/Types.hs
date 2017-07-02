@@ -59,3 +59,7 @@ instance Functor Optional where
 unOptional :: Optional a -> a
 unOptional (Optional x) = x
 unOptional (Required x) = x
+
+degradeOptional :: Optional a -> Optional a
+degradeOptional (Required x) = Optional x
+degradeOptional x = x

@@ -20,7 +20,7 @@ import           Data.Maybe                 (fromJust, fromMaybe, isJust)
 import qualified Data.Swagger               as S
 import qualified Data.Text                  as T
 import qualified Data.Text.IO               as T
-import           Text.Show.Pretty           (pPrint)
+import           Text.Show.Pretty           (pPrint, ppShow)
 
 import           Gen.AST
 import           Gen.AST.Error
@@ -54,6 +54,7 @@ printError ASTError{..} = do
 main :: IO ()
 main = do
   swag <- readSwagger "swagger.json"
+  writeFile "swag.txt" $ ppShow $ S._swaggerDefinitions swag
   case rewriteDefinitions $ S._swaggerDefinitions swag of
-    Left error -> printError error
-    Right types -> pPrint types
+    Left error  -> printError error
+    Right types -> writeFile "haskube.txt" $ ppShow types
