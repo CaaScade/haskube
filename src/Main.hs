@@ -23,9 +23,9 @@ import qualified Data.Text.IO               as T
 import           Text.Show.Pretty           (pPrint, ppShow)
 
 import           Gen.AST
-import           Gen.AST.Error
+import           Gen.AST.Class
 
-parseSwagger :: AE.Value -> (Either String S.Swagger)
+parseSwagger :: AE.Value -> Either String S.Swagger
 parseSwagger =
   parseEither AE.parseJSON . setType
   where definitionType = AE.key "definitions" . AE.members . AE._Object . at "type"

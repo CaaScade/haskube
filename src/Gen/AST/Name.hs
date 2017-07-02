@@ -1,10 +1,10 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 
 module Gen.AST.Name where
@@ -15,8 +15,8 @@ import           Control.Monad
 import           Control.Monad.Except
 import           Control.Monad.Writer
 
-import Data.Maybe (isJust, fromMaybe)
 import qualified Data.HashMap.Strict.InsOrd as HI
+import           Data.Maybe                 (fromMaybe, isJust)
 import           Data.Monoid
 import qualified Data.Swagger               as S
 import qualified Data.Swagger.Internal      as S
@@ -27,36 +27,10 @@ import           Text.Parsec.Char
 import           Text.Parsec.Combinator
 import           Text.Parsec.Text           (Parser)
 
-import           Gen.AST.Error
+import           Gen.AST.BuiltIn
+import           Gen.AST.Class
+import           Gen.AST.Description
 import           Gen.AST.Types
-
-newtype Description = Description { _descriptionText :: Text } deriving (Show)
-
-labelDescription :: Text -> Description -> Description
-labelDescription label Description{..} =
-  Description $ label <> " " <> _descriptionText
-
-appendDescription' :: Description -> Description -> Description
-appendDescription' = dConcatWith' " | "
-
-appendDescription :: Maybe Description -> Maybe Description -> Maybe Description
-appendDescription = dConcatWith " | "
-
-dConcatWith' :: Text -> Description -> Description -> Description
-dConcatWith' sep (Description d0) (Description d1) =
-  Description $ d0 <> sep <> d1
-
-dConcatWith :: Text -> Maybe Description -> Maybe Description -> Maybe Description
-dConcatWith _ Nothing Nothing = Nothing
-dConcatWith _ d0 Nothing = d0
-dConcatWith _ Nothing d1 = d1
-dConcatWith sep (Just d0) (Just d1) = Just $ dConcatWith' sep d0 d1
-
-wrapDescription :: Description -> Description
-wrapDescription Description{..} = Description $ "{ " <> _descriptionText <> " }"
-
-nestDescription :: Maybe Description -> Maybe Description -> Maybe Description
-nestDescription outer inner = dConcatWith " " outer $ wrapDescription <$> inner
 
 testRef :: Text
 testRef = "#/definitions/io.k8s.kubernetes.pkg.apis.autoscaling.v2alpha1.CrossVersionObjectReference"
@@ -84,6 +58,16 @@ doParse parser text = case runParser parser () "" text of
   Left err  -> throwASTError ("doParse on '" <> text <> "' failed: ") err
   Right val -> return val
 
+{- |
+The only required ExternalTypeNames are those referenced in the Swagger spec.
+Therefore, extended ExternalTypeNames cannot be required.
+-}
+extendTypeName :: Text -> Optional ExternalTypeName -> Optional ExternalTypeName
+extendTypeName extension = degradeOptional . fmap (over externalName (<> "_" <> extension))
+
+extendTypeName' :: Show a => a -> Optional ExternalTypeName -> Optional ExternalTypeName
+extendTypeName' = extendTypeName . T.pack . show
+
 referencedTypeName
   :: (MonadAST m)
   => Optional ExternalTypeName
@@ -96,35 +80,6 @@ referencedTypeName typeName (S.Inline schema) = schemaTypeName typeName schema
 
 keyedTypeName :: (MonadASTError m) => Text -> m ExternalTypeName
 keyedTypeName = doParse parseRef
-
-{- |
-The only required ExternalTypeNames are those referenced in the Swagger spec.
-Therefore, extended ExternalTypeNames cannot be required.
--}
-extendTypeName :: Text -> Optional ExternalTypeName -> Optional ExternalTypeName
-extendTypeName extension = degradeOptional . fmap (over externalName (<> "_" <> extension))
-
-extendTypeName' :: Show a => a -> Optional ExternalTypeName -> Optional ExternalTypeName
-extendTypeName' = extendTypeName . T.pack . show
-
--- TODO: Create newtypes for Kubernetes.Types.Base types.
-builtInNewtypesModule :: Maybe Text
-builtInNewtypesModule = Just "Kubernetes.Types.Base"
-
--- TODO: There are other "format"s as well--i.e. "email" for "string"
-int32Name = SimpleName (Just "Data.Int") "Int32"
-int64Name = SimpleName (Just "Data.Int") "Int64"
-floatName = SimpleName Nothing "Float"
-doubleName = SimpleName Nothing "Double"
-textName = SimpleName (Just "Data.Text") "Text"
-base64Name = SimpleName builtInNewtypesModule "Base64String"
-octetsName = SimpleName (Just "Data.ByteString") "ByteString"
-boolName = SimpleName Nothing "Bool"
-dateName = SimpleName (Just "Data.Time") "Day"
-dateTimeName = SimpleName (Just "Data.Time") "UTCTime"
-passwordName = SimpleName builtInNewtypesModule "Password"
-intOrStringName = SimpleName builtInNewtypesModule "IntOrString"
-unitName = SimpleName Nothing "()"
 
 itemsSchemaTypeName
   :: (MonadAST m)
@@ -154,31 +109,6 @@ itemsSchemaTypeName typeName (S.SwaggerItemsArray refs) = do
         indexedDs = zipWith decorateWithIndex ds [1 ..]
     extractDescriptions :: [Maybe Description] -> [Description]
     extractDescriptions = fmap $ fromMaybe (Description "<no description>")
-
-integerTypeName :: (MonadASTError m) => Maybe S.Format -> m TypeName
-integerTypeName Nothing = throwASTError "missing format for integer" ()
-integerTypeName (Just format)
-  | format == "int32" = return int32Name
-  | format == "int64" = return int64Name
-  | otherwise = throwASTError "unrecognized integer format: " format
-
-numberTypeName :: (MonadASTError m) => Maybe S.Format -> m TypeName
-numberTypeName Nothing = throwASTError "missing format for number" ()
-numberTypeName (Just format)
-  | format == "float" = return floatName
-  | format == "double" = return doubleName
-  | otherwise = throwASTError "unrecognized number format: " format
-
-stringTypeName :: (MonadASTError m) => Maybe S.Format -> m TypeName
-stringTypeName Nothing = return textName
-stringTypeName (Just format)
-  | format == "byte" = return base64Name
-  | format == "binary" = return octetsName
-  | format == "date" = return dateName
-  | format == "date-time" = return dateTimeName
-  | format == "password" = return passwordName
-  | format == "int-or-string" = return intOrStringName
-  | otherwise = throwASTError "unrecognized string format: " format
 
 -- | Yields the TypeName to use and writes the newtype it (maybe) created.
 mkNewtype'

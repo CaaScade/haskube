@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+
 {-# LANGUAGE TypeFamilies      #-}
 
 module Gen.AST where
@@ -19,7 +19,7 @@ import qualified Data.Swagger               as S
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 
-import           Gen.AST.Error
+import           Gen.AST.Class
 import           Gen.AST.Name               (keyedTypeName, schemaTypeName)
 import           Gen.AST.Types
 
@@ -28,7 +28,7 @@ rewriteDefinitions = runExcept . execWriterT . rewriteDefinitions_
 
 rewriteDefinitions_ :: (MonadAST m) => S.Definitions S.Schema -> m ()
 rewriteDefinitions_ definitions =
-  pushASTError ("rewriteDefinitions_") $
+  pushASTError "rewriteDefinitions_" $
   mapM_ rewriteDefinition $ HI.toList definitions
 
 rewriteDefinition :: (MonadAST m) => (Text, S.Schema) -> m TypeName

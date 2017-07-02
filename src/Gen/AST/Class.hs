@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ConstraintKinds #-}
 
-module Gen.AST.Error where
+module Gen.AST.Class where
 
 import           Control.Monad.Except
 import           Control.Lens
