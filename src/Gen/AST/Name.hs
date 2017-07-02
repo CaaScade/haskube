@@ -30,19 +30,33 @@ import           Text.Parsec.Text           (Parser)
 import           Gen.AST.Error
 import           Gen.AST.Types
 
-newtype Description = Description { _descriptionContents :: Maybe Text } deriving (Show)
-emptyDescription = Description Nothing
+newtype Description = Description { _descriptionText :: Text } deriving (Show)
 
 labelDescription :: Text -> Description -> Description
 labelDescription label Description{..} =
-  Description $ (\x -> label <> " " <> x) <$> _descriptionContents
+  Description $ label <> " " <> _descriptionText
 
-appendDescription :: Description -> Description -> Description
-appendDescription (Description Nothing) (Description Nothing) = emptyDescription
-appendDescription d0 (Description Nothing) = d0
-appendDescription (Description Nothing) d1 = d1
-appendDescription (Description (Just d0)) (Description (Just d1)) =
-  Description . Just $ d0 <> " | " <> d1
+appendDescription' :: Description -> Description -> Description
+appendDescription' = dConcatWith' " | "
+
+appendDescription :: Maybe Description -> Maybe Description -> Maybe Description
+appendDescription = dConcatWith " | "
+
+dConcatWith' :: Text -> Description -> Description -> Description
+dConcatWith' sep (Description d0) (Description d1) =
+  Description $ d0 <> sep <> d1
+
+dConcatWith :: Text -> Maybe Description -> Maybe Description -> Maybe Description
+dConcatWith _ Nothing Nothing = Nothing
+dConcatWith _ d0 Nothing = d0
+dConcatWith _ Nothing d1 = d1
+dConcatWith sep (Just d0) (Just d1) = Just $ dConcatWith' sep d0 d1
+
+wrapDescription :: Description -> Description
+wrapDescription Description{..} = Description $ "{ " <> _descriptionText <> " }"
+
+nestDescription :: Maybe Description -> Maybe Description -> Maybe Description
+nestDescription outer inner = dConcatWith " " outer $ wrapDescription <$> inner
 
 testRef :: Text
 testRef = "#/definitions/io.k8s.kubernetes.pkg.apis.autoscaling.v2alpha1.CrossVersionObjectReference"
@@ -72,10 +86,12 @@ doParse parser text = case runParser parser () "" text of
 
 referencedTypeName
   :: (MonadAST m)
-  => Optional ExternalTypeName -> S.Referenced S.Schema -> m (TypeName, Description)
+  => Optional ExternalTypeName
+  -> S.Referenced S.Schema
+  -> m (TypeName, Maybe Description) -- ^ name and description of the referenced type
 referencedTypeName typeName (S.Ref ref) = do
   refTypeName <- fromExternalTypeName <$> doParse parseRef (S.getReference ref)
-  (,emptyDescription) <$> mkNewtype' typeName emptyDescription refTypeName
+  mkNewtype' typeName Nothing refTypeName -- TODO: S.Ref should be able to hold a description.
 referencedTypeName typeName (S.Inline schema) = schemaTypeName typeName schema
 
 keyedTypeName :: (MonadASTError m) => Text -> m ExternalTypeName
@@ -114,32 +130,30 @@ itemsSchemaTypeName
   :: (MonadAST m)
   => Optional ExternalTypeName
   -> S.SwaggerItems 'S.SwaggerKindSchema
-  -> m (TypeName, Description)
+  -> m (TypeName, Maybe Description) -- ^ name and description of the items for an array type
 itemsSchemaTypeName typeName (S.SwaggerItemsPrimitive _ paramSchema) -- Kubernetes doesn't use the collectionFormat key. (csv by default)
- = paramSchemaTypeName typeName emptyDescription paramSchema
+ = paramSchemaTypeName typeName Nothing paramSchema
 itemsSchemaTypeName typeName (S.SwaggerItemsObject ref) = referencedTypeName typeName ref
 itemsSchemaTypeName typeName (S.SwaggerItemsArray refs) = do
   namesAndDescriptions <- mapM f indexedRefs
-  tupleTypeName <-
-    mkNewtype' typeName emptyDescription $
-    TupleName $ fst <$> namesAndDescriptions
   let descriptions = snd <$> namesAndDescriptions
-      tupleDescription = if any (isJust . _descriptionContents) descriptions
-        then Description . Just . mergeDescriptions $ extractDescriptions descriptions
-        else emptyDescription
-  return (tupleTypeName, tupleDescription)
+      tupleDescription = if any isJust descriptions
+        then Just . mergeDescriptions $ extractDescriptions descriptions
+        else Nothing
+  mkNewtype' typeName tupleDescription $ TupleName $ fst <$> namesAndDescriptions
   where
     f (index, ref) = referencedTypeName (extendTypeName' index typeName) ref
     indexedRefs = zip [1 ..] refs
     -- Doing things with descriptions:
-    d `decorateWithIndex` i = "(" <> T.pack (show i) <> ")" <> d <> " "
-    d0 `dConcat` d1 = d0 <> " | " <> d1
-    mergeDescriptions :: [Text] -> Text
-    mergeDescriptions ds = foldl1 dConcat indexedDs
+    decorateWithIndex :: (Show a) => Description -> a -> Description
+    d `decorateWithIndex` i = labelDescription ("(" <> T.pack (show i) <> ")") d
+    mergeDescriptions :: [Description] -> Description
+    mergeDescriptions ds = foldl1 appendDescription' indexedDs
       where
+        indexedDs :: [Description]
         indexedDs = zipWith decorateWithIndex ds [1 ..]
-    extractDescriptions :: [Description] -> [Text]
-    extractDescriptions = fmap $ fromMaybe "<no description>" . _descriptionContents
+    extractDescriptions :: [Maybe Description] -> [Description]
+    extractDescriptions = fmap $ fromMaybe (Description "<no description>")
 
 integerTypeName :: (MonadASTError m) => Maybe S.Format -> m TypeName
 integerTypeName Nothing = throwASTError "missing format for integer" ()
@@ -169,20 +183,23 @@ stringTypeName (Just format)
 -- | Yields the TypeName to use and writes the newtype it (maybe) created.
 mkNewtype'
   :: (MonadAST m)
-  => Optional ExternalTypeName -> Description -> TypeName -> m TypeName
-mkNewtype' (Optional _) _ value = return value -- TODO: warn if description is discarded?
-mkNewtype' (Required name) Description{..} value = do
+  => Optional ExternalTypeName
+  -> Maybe Description
+  -> TypeName
+  -> m (TypeName, Maybe Description) -- ^ passes through the description it was given (for convenience)
+mkNewtype' (Optional _) description value = return (value, description)
+mkNewtype' (Required name) description value = do
   tell . pure . Left $
     Newtype
-    {_newtypeName = name, _newtypeValue = value, _newtypeDescription = _descriptionContents }
-  return . fromExternalTypeName $ name
+    {_newtypeName = name, _newtypeValue = value, _newtypeDescription = _descriptionText <$> description }
+  return . (,description) . fromExternalTypeName $ name
 
 paramSchemaTypeName
   :: (MonadAST m)
   => Optional ExternalTypeName
-  -> Description
+  -> Maybe Description
   -> S.ParamSchema 'S.SwaggerKindSchema
-  -> m (TypeName, Description)
+  -> m (TypeName, Maybe Description)
 paramSchemaTypeName typeName description paramSchema@S.ParamSchema {..} =
   pushASTError ("paramSchemaTypeName", paramSchema) $
   case _paramSchemaType of
@@ -198,39 +215,39 @@ paramSchemaTypeName typeName description paramSchema@S.ParamSchema {..} =
             paramSchema
         Just items -> do
           (itemsName, itemsDescription_) <- itemsSchemaTypeName (extendTypeName "items" typeName) items
-          let itemsDescription = labelDescription "(items:)" itemsDescription_
-              arrayDescription = description `appendDescription` itemsDescription
+          let itemsDescription = labelDescription "(items:)" <$> itemsDescription_
+              arrayDescription = description `nestDescription` itemsDescription
               arrayName = ArrayName itemsName
-          (,arrayDescription) <$> mkNewtype' typeName arrayDescription arrayName
+          mkNewtype' typeName arrayDescription arrayName
     S.SwaggerNull -> newtypify unitName
     S.SwaggerObject ->
       throwASTError "unexpected type 'object' in paramSchema: " paramSchema
   where
-    newtypify = fmap (,description) . mkNewtype' typeName description
+    newtypify = mkNewtype' typeName description
 
 additionalPropertiesTypeName
   :: (MonadAST m)
   => Optional ExternalTypeName
   -> S.Referenced S.Schema -- ^ dictionary value type (aka additionalProperties)
-  -> m (TypeName, Description)
+  -> m (TypeName, Maybe Description)
 additionalPropertiesTypeName typeName ref =
   pushASTError "additionalPropertiesTypeName" $ do
     (valueTypeName, valueDescription) <-
       referencedTypeName (extendTypeName "value" typeName) ref
     let dictName = DictionaryName valueTypeName
-        dictDescription = (labelDescription "(value)" valueDescription)
-    (,dictDescription) <$> mkNewtype' typeName dictDescription dictName
+        dictDescription = labelDescription "(values:)" <$> valueDescription
+    mkNewtype' typeName dictDescription dictName
 
 -- TODO: description
 -- | This declaration is a dictionary (JSON "object").
 objectTypeName
   :: (MonadAST m)
   => Optional ExternalTypeName
-  -> Description
+  -> Maybe Description
   -> [S.ParamName]
   -> HI.InsOrdHashMap Text (S.Referenced S.Schema)
   -> Maybe (S.Referenced S.Schema)
-  -> m TypeName
+  -> m (TypeName, Maybe Description) -- ^ passes the description through for convenience
 objectTypeName typeName description requiredProperties properties additionalProperties =
   pushASTError "objectTypeName" $ do
   props <- mapM fieldify $ HI.toList properties
@@ -240,8 +257,8 @@ objectTypeName typeName description requiredProperties properties additionalProp
   let typeName' = fromExternalTypeName . unOptional $ typeName
   tellData $ Data { _dataName = typeName'
                   , _dataFields = fields
-                  , _dataDescription = _descriptionContents description }
-  return typeName'
+                  , _dataDescription = _descriptionText <$> description }
+  return (typeName', description)
   where fieldify (name, ref) = pushASTError ("fieldify", (name, ref)) $ do
           (fieldTypeName_, fieldDescription) <- referencedTypeName (extendTypeName name typeName) ref
           let fieldTypeName = if name `elem` requiredProperties
@@ -249,16 +266,16 @@ objectTypeName typeName description requiredProperties properties additionalProp
                 else MaybeName fieldTypeName_
           return $ Field { _fieldName = Right name
                          , _fieldType = fieldTypeName
-                         , _fieldDescription = _descriptionContents fieldDescription }
+                         , _fieldDescription = _descriptionText <$> fieldDescription }
         fieldify' ref = pushASTError ("fieldify'", ref) $ do
           (fieldTypeName, fieldDescription) <- additionalPropertiesTypeName (extendTypeName "addlProps" typeName) ref
           return $ Field { _fieldName = Left AdditionalProperties
                          , _fieldType = fieldTypeName
-                         , _fieldDescription = _descriptionContents fieldDescription }
+                         , _fieldDescription = _descriptionText <$> fieldDescription }
 
-schemaTypeName :: (MonadAST m) => Optional ExternalTypeName -> S.Schema -> m (TypeName, Description)
+schemaTypeName :: (MonadAST m) => Optional ExternalTypeName -> S.Schema -> m (TypeName, Maybe Description)
 schemaTypeName typeName schema@S.Schema {..} =
   pushASTError ("schemaTypeName", schema) $
   case S._paramSchemaType _schemaParamSchema of
-    S.SwaggerObject -> (,emptyDescription) <$> objectTypeName typeName (Description _schemaDescription) _schemaRequired _schemaProperties _schemaAdditionalProperties
-    _ -> paramSchemaTypeName typeName (Description _schemaDescription) _schemaParamSchema
+    S.SwaggerObject -> objectTypeName typeName (Description <$> _schemaDescription) _schemaRequired _schemaProperties _schemaAdditionalProperties
+    _ -> paramSchemaTypeName typeName (Description <$> _schemaDescription) _schemaParamSchema

@@ -35,4 +35,4 @@ rewriteDefinition :: (MonadAST m) => (Text, S.Schema) -> m TypeName
 rewriteDefinition (key, schema) =
   pushASTError ("rewriteDefinition", key) $ do
     typeName <- keyedTypeName key
-    schemaTypeName (Required typeName) schema
+    fst <$> schemaTypeName (Required typeName) schema
