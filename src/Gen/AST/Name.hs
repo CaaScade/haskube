@@ -3,7 +3,6 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 
@@ -179,28 +178,44 @@ objectTypeName
   -> m (TypeName, Maybe Description) -- ^ passes the description through for convenience
 objectTypeName typeName description requiredProperties properties additionalProperties =
   pushASTError "objectTypeName" $ do
-  props <- mapM fieldify $ HI.toList properties
-  fields <- case additionalProperties of
-    Nothing             -> return props
-    Just addlPropsValue -> (:props) <$> fieldify' addlPropsValue
-  let typeName' = fromExternalTypeName . unOptional $ typeName
-  tellData $ Data { _dataName = typeName'
-                  , _dataFields = fields
-                  , _dataDescription = _descriptionText <$> description }
-  return (typeName', description)
-  where fieldify (name, ref) = pushASTError ("fieldify", (name, ref)) $ do
-          (fieldTypeName_, fieldDescription) <- referencedTypeName (extendTypeName name typeName) ref
-          let fieldTypeName = if name `elem` requiredProperties
+    props <- mapM fieldify $ HI.toList properties
+    fields <-
+      case additionalProperties of
+        Nothing -> return props
+        Just addlPropsValue -> (: props) <$> fieldify' addlPropsValue
+    let typeName' = fromExternalTypeName . unOptional $ typeName
+    tellData
+      Data
+      { _dataName = typeName'
+      , _dataFields = fields
+      , _dataDescription = _descriptionText <$> description
+      }
+    return (typeName', description)
+  where
+    fieldify (name, ref) =
+      pushASTError ("fieldify", (name, ref)) $ do
+        (fieldTypeName_, fieldDescription) <-
+          referencedTypeName (extendTypeName name typeName) ref
+        let fieldTypeName =
+              if name `elem` requiredProperties
                 then fieldTypeName_
                 else MaybeName fieldTypeName_
-          return $ Field { _fieldName = Right name
-                         , _fieldType = fieldTypeName
-                         , _fieldDescription = _descriptionText <$> fieldDescription }
-        fieldify' ref = pushASTError ("fieldify'", ref) $ do
-          (fieldTypeName, fieldDescription) <- additionalPropertiesTypeName (extendTypeName "addlProps" typeName) ref
-          return $ Field { _fieldName = Left AdditionalProperties
-                         , _fieldType = fieldTypeName
-                         , _fieldDescription = _descriptionText <$> fieldDescription }
+        return
+          Field
+          { _fieldName = Right name
+          , _fieldType = fieldTypeName
+          , _fieldDescription = _descriptionText <$> fieldDescription
+          }
+    fieldify' ref =
+      pushASTError ("fieldify'", ref) $ do
+        (fieldTypeName, fieldDescription) <-
+          additionalPropertiesTypeName (extendTypeName "addlProps" typeName) ref
+        return
+          Field
+          { _fieldName = Left AdditionalProperties
+          , _fieldType = fieldTypeName
+          , _fieldDescription = _descriptionText <$> fieldDescription
+          }
 
 schemaTypeName :: (MonadAST m) => Optional ExternalTypeName -> S.Schema -> m (TypeName, Maybe Description)
 schemaTypeName typeName schema@S.Schema {..} =
