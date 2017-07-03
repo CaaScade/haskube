@@ -26,7 +26,7 @@ dateName = SimpleName (Just "Data.Time") "Day"
 dateTimeName = SimpleName (Just "Data.Time") "UTCTime"
 passwordName = SimpleName builtInNewtypesModule "Password"
 intOrStringName = SimpleName builtInNewtypesModule "IntOrString"
-unitName = SimpleName Nothing "()"
+nullName = SimpleName builtInNewtypesModule "Null"
 
 integerTypeName :: (MonadASTError m) => Maybe S.Format -> m TypeName
 integerTypeName Nothing = throwASTError "missing format for integer" ()

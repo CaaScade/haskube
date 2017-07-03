@@ -9,7 +9,7 @@
 module Gen.AST.Name where
 
 import           Control.Applicative
-import           Control.Lens
+import           Control.Lens               (over)
 import           Control.Monad
 import           Control.Monad.Except
 import           Control.Monad.Writer
@@ -34,23 +34,24 @@ import           Gen.AST.Types
 testRef :: Text
 testRef = "#/definitions/io.k8s.kubernetes.pkg.apis.autoscaling.v2alpha1.CrossVersionObjectReference"
 
-mkTypeName :: [Text] -> ExternalTypeName
-mkTypeName [] = error "Should have been called from parseKey using a nonempty list"
-mkTypeName segments =
-  ExternalName {_externalModule = moduleName, _externalName = last segments}
+parseTypeName_ :: [Text] -> Parser ExternalTypeName
+parseTypeName_ [] = error "Should have been called from parseKey using a nonempty list"
+parseTypeName_ segments = do
+  moduleName <-
+    if T.null moduleName_
+      then fail $ "no module name parsed from segments: " <> show segments
+      else return moduleName_
+  return $
+    ExternalName {_externalModule = moduleName, _externalName = last segments}
   where
-    moduleName_ = T.intercalate period (T.toTitle <$> init segments)
-    moduleName =
-      if T.null moduleName_
-        then Nothing
-        else Just moduleName_
-    period = T.pack "."
+    moduleName_ = T.intercalate "." (T.toTitle <$> init segments)
 
 parseRef :: Parser ExternalTypeName
 parseRef = do
   _ <- string "io.k8s."
-  segments <- many1 alphaNum `sepBy1` char '.'
-  return . mkTypeName . fmap T.pack $ segments
+  segments <- many1 (noneOf ".") `sepBy1` char '.'
+  eof
+  parseTypeName_ . fmap T.pack $ segments
 
 doParse :: (MonadASTError m) => Parser a -> Text -> m a
 doParse parser text = case runParser parser () "" text of
@@ -148,7 +149,7 @@ paramSchemaTypeName typeName description paramSchema@S.ParamSchema {..} =
               arrayDescription = description `nestDescription` itemsDescription
               arrayName = ArrayName itemsName
           mkNewtype' typeName arrayDescription arrayName
-    S.SwaggerNull -> newtypify unitName
+    S.SwaggerNull -> newtypify nullName
     S.SwaggerObject ->
       throwASTError "unexpected type 'object' in paramSchema: " paramSchema
   where
@@ -176,26 +177,26 @@ objectTypeName
   -> HI.InsOrdHashMap Text (S.Referenced S.Schema)
   -> Maybe (S.Referenced S.Schema)
   -> m (TypeName, Maybe Description) -- ^ passes the description through for convenience
-objectTypeName typeName description requiredProperties properties additionalProperties =
+objectTypeName typeName_ description requiredProperties properties additionalProperties =
   pushASTError "objectTypeName" $ do
     props <- mapM fieldify $ HI.toList properties
     fields <-
       case additionalProperties of
-        Nothing -> return props
+        Nothing             -> return props
         Just addlPropsValue -> (: props) <$> fieldify' addlPropsValue
-    let typeName' = fromExternalTypeName . unOptional $ typeName
+    let typeName = unOptional typeName_
     tellData
       Data
-      { _dataName = typeName'
+      { _dataName = typeName
       , _dataFields = fields
       , _dataDescription = _descriptionText <$> description
       }
-    return (typeName', description)
+    return (fromExternalTypeName typeName, description)
   where
     fieldify (name, ref) =
       pushASTError ("fieldify", (name, ref)) $ do
         (fieldTypeName_, fieldDescription) <-
-          referencedTypeName (extendTypeName name typeName) ref
+          referencedTypeName (extendTypeName name typeName_) ref
         let fieldTypeName =
               if name `elem` requiredProperties
                 then fieldTypeName_
@@ -209,7 +210,7 @@ objectTypeName typeName description requiredProperties properties additionalProp
     fieldify' ref =
       pushASTError ("fieldify'", ref) $ do
         (fieldTypeName, fieldDescription) <-
-          additionalPropertiesTypeName (extendTypeName "addlProps" typeName) ref
+          additionalPropertiesTypeName (extendTypeName "addlProps" typeName_) ref
         return
           Field
           { _fieldName = Left AdditionalProperties

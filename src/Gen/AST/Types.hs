@@ -1,12 +1,19 @@
-{-# LANGUAGE GADTs           #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Gen.AST.Types where
 
-import           Control.Lens (makeLenses)
+import           GHC.Generics
 
-import           Data.Text    (Text)
+import           Control.Applicative
+import           Control.Lens        (makeLenses)
+
+import           Data.Aeson
+import qualified Data.Aeson.Types    as A
+import           Data.Text           (Text)
 
 data TypeName where
   ArrayName :: TypeName -> TypeName
@@ -17,28 +24,28 @@ data TypeName where
   deriving (Show)
 
 data ExternalTypeName = ExternalName
-  { _externalModule :: Maybe Text
-  , _externalName   :: Text } deriving (Show)
+  { _externalModule :: Text
+  , _externalName   :: Text } deriving (Show, Generic)
 
-data AdditionalProperties = AdditionalProperties deriving (Show)
+data AdditionalProperties = AdditionalProperties deriving (Show, Generic)
 
 data Newtype = Newtype
   { _newtypeName        :: ExternalTypeName
   , _newtypeValue       :: TypeName
   , _newtypeDescription :: Maybe Text
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 data Field = Field
   { _fieldName        :: Either AdditionalProperties Text
   , _fieldType        :: TypeName
   , _fieldDescription :: Maybe Text
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 data Data = Data
-  { _dataName        :: TypeName
+  { _dataName        :: ExternalTypeName
   , _dataFields      :: [Field]
   , _dataDescription :: Maybe Text
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 type Type = Either Newtype Data
 
@@ -47,8 +54,61 @@ makeLenses ''Newtype
 makeLenses ''Field
 makeLenses ''Data
 
+instance ToJSON TypeName where
+  toJSON (ArrayName typeName) = object ["_array" .= (), "_type" .= typeName]
+  toJSON (TupleName typeNames) = object ["_tuple" .= (), "_types" .= typeNames]
+  toJSON (DictionaryName typeName) =
+    object ["_dictionary" .= (), "_type" .= typeName]
+  toJSON (MaybeName typeName) = object ["_maybe" .= (), "_type" .= typeName]
+  toJSON (SimpleName moduleName typeName) =
+    object ["_simple" .= (), "_module" .= moduleName, "_type" .= typeName]
+
+instance FromJSON TypeName where
+  parseJSON (Object v) =
+    parseArrayName v <|> parseTupleName v <|> parseDictionaryName v <|>
+    parseMaybeName v <|>
+    parseSimpleName v
+
+instance ToJSON ExternalTypeName where
+  toEncoding = genericToEncoding defaultOptions
+instance FromJSON ExternalTypeName
+instance ToJSON AdditionalProperties where
+  toEncoding = genericToEncoding defaultOptions
+instance FromJSON AdditionalProperties
+instance ToJSON Newtype where
+  toEncoding = genericToEncoding defaultOptions
+instance FromJSON Newtype
+instance ToJSON Field where
+  toEncoding = genericToEncoding defaultOptions
+instance FromJSON Field
+instance ToJSON Data where
+  toEncoding = genericToEncoding defaultOptions
+instance FromJSON Data
+
+parseArrayName :: Object -> A.Parser TypeName
+parseArrayName v = (v .: "_array" :: A.Parser ()) >> ArrayName <$> v .: "_type"
+
+parseTupleName :: Object -> A.Parser TypeName
+parseTupleName v = (v .: "_tuple" :: A.Parser ()) >> TupleName <$> v .: "_types"
+
+parseDictionaryName :: Object -> A.Parser TypeName
+parseDictionaryName v =
+  (v .: "_dictionary" :: A.Parser ()) >> DictionaryName <$> v .: "_type"
+
+parseMaybeName :: Object -> A.Parser TypeName
+parseMaybeName v = (v .: "_maybe" :: A.Parser ()) >> MaybeName <$> v .: "_type"
+
+parseSimpleName :: Object -> A.Parser TypeName
+parseSimpleName v =
+  (v .: "_simple" :: A.Parser ()) >>
+  SimpleName <$> v .: "_module" <*> v .: "_type"
+
 fromExternalTypeName :: ExternalTypeName -> TypeName
-fromExternalTypeName ExternalName{..} = SimpleName _externalModule _externalName
+fromExternalTypeName ExternalName{..} = SimpleName (Just _externalModule) _externalName
+
+_typeModule :: Type -> Text
+_typeModule (Left Newtype{..}) = _externalModule _newtypeName
+_typeModule (Right Data{..}) = _externalModule _dataName
 
 data Optional a = Optional a | Required a
 

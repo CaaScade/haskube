@@ -55,6 +55,8 @@ main :: IO ()
 main = do
   swag <- readSwagger "swagger.json"
   writeFile "swag.txt" $ ppShow $ S._swaggerDefinitions swag
-  case rewriteDefinitions $ S._swaggerDefinitions swag of
+  case fmap toModules . rewriteDefinitions $ S._swaggerDefinitions swag of
     Left error  -> printError error
-    Right types -> writeFile "haskube.txt" $ ppShow types
+    Right modules -> do
+      writeFile "haskube.txt" $ ppShow modules
+      BS.writeFile "haskube.json" $ AE.encode modules
