@@ -14,6 +14,8 @@ import           Control.Lens        (makeLenses)
 import           Data.Aeson
 import qualified Data.Aeson.Types    as A
 import           Data.Text           (Text)
+import Data.Maybe (maybeToList)
+import Data.Monoid
 
 data TypeName where
   ArrayName :: TypeName -> TypeName
@@ -109,6 +111,13 @@ fromExternalTypeName ExternalName{..} = SimpleName (Just _externalModule) _exter
 _typeModule :: Type -> Text
 _typeModule (Left Newtype{..}) = _externalModule _newtypeName
 _typeModule (Right Data{..}) = _externalModule _dataName
+
+_typeNameModules :: TypeName -> [Text]
+_typeNameModules (ArrayName t) = _typeNameModules t
+_typeNameModules (TupleName ts) = foldl1 (<>) $ _typeNameModules <$> ts
+_typeNameModules (DictionaryName t) = "Data.HashMap.Strict":_typeNameModules t
+_typeNameModules (MaybeName t) = _typeNameModules t
+_typeNameModules (SimpleName moduleName _) = maybeToList moduleName
 
 data Optional a = Optional a | Required a
 

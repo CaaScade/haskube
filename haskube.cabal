@@ -21,6 +21,7 @@ executable haskube
                      , base >= 4.7 && < 5
                      , bytestring
                      , ede
+                     , haskell-src-exts
                      , insert-ordered-containers
                      , lens
                      , lens-aeson
