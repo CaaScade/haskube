@@ -10,15 +10,13 @@ import           Control.Lens
 import           Control.Lens.At
 import           Control.Lens.Traversal
 
-import           Language.Haskell.Exts.Pretty
-
-import qualified Data.Aeson                   as AE
-import qualified Data.ByteString.Lazy         as BS
-import qualified Data.HashMap.Strict          as H
+import qualified Data.Aeson             as AE
+import qualified Data.ByteString.Lazy   as BS
+import qualified Data.HashMap.Strict    as H
 import           Data.Monoid
-import qualified Data.Swagger                 as S
-import           Data.Text                    (unpack)
-import           Text.Show.Pretty             (pPrint, ppShow)
+import qualified Data.Swagger           as S
+import           Data.Text              (unpack)
+import           Text.Show.Pretty       (pPrint, ppShow)
 
 import           Gen.AST
 import           Gen.AST.Class
@@ -35,5 +33,7 @@ main = do
       writeFile "haskube.txt" $ ppShow types
       BS.writeFile "haskube.json" $ AE.encode types
       let modules = mkModules types
-          f (key, val) = writeFile ("output/" <> unpack key <> ".hs") $ prettyPrint val
+          outputDir = "output/src/"
+          f (key, val) = writeModule outputDir key val
+      removeDirectoryIfExists outputDir
       mapM_ f $ H.toList modules
