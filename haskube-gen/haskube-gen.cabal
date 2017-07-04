@@ -1,8 +1,8 @@
-name:                haskube
+name:                haskube-gen
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/ublubu/haskube#readme
+homepage:            https://github.com/ublubu/haskube/haskube-gen#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Kynan Rilee
@@ -13,7 +13,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 extra-source-files:  README.md
 
-executable haskube
+executable haskube-gen
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010

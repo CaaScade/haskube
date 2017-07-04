@@ -1,0 +1,48 @@
+name:                haskube
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/ublubu/haskube#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Kynan Rilee
+maintainer:          kynan.rilee@gmail.com
+copyright:           Copyright (c) 2017 Kynan Rilee
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+extra-source-files:  README.md
+
+library
+  exposed-modules:     Apimachinery.Pkg.Api.Resource
+                     , Apimachinery.Pkg.Apis.Meta.V1
+                     , Apimachinery.Pkg.Runtime
+                     , Apimachinery.Pkg.Util.Intstr
+                     , Apimachinery.Pkg.Version
+                     , Kube_Aggregator.Pkg.Apis.Apiregistration.V1Beta1
+                     , Kubernetes.Pkg.Api.V1
+                     , Kubernetes.Pkg.Apis.Admissionregistration.V1Alpha1
+                     , Kubernetes.Pkg.Apis.Apps.V1Beta1
+                     , Kubernetes.Pkg.Apis.Authentication.V1
+                     , Kubernetes.Pkg.Apis.Authentication.V1Beta1
+                     , Kubernetes.Pkg.Apis.Authorization.V1
+                     , Kubernetes.Pkg.Apis.Authorization.V1Beta1
+                     , Kubernetes.Pkg.Apis.Autoscaling.V1
+                     , Kubernetes.Pkg.Apis.Autoscaling.V2Alpha1
+                     , Kubernetes.Pkg.Apis.Batch.V1
+                     , Kubernetes.Pkg.Apis.Batch.V2Alpha1
+                     , Kubernetes.Pkg.Apis.Certificates.V1Beta1
+                     , Kubernetes.Pkg.Apis.Extensions.V1Beta1
+                     , Kubernetes.Pkg.Apis.Networking.V1
+                     , Kubernetes.Pkg.Apis.Policy.V1Beta1
+                     , Kubernetes.Pkg.Apis.Rbac.V1Alpha1
+                     , Kubernetes.Pkg.Apis.Rbac.V1Beta1
+                     , Kubernetes.Pkg.Apis.Settings.V1Alpha1
+                     , Kubernetes.Pkg.Apis.Storage.V1
+                     , Kubernetes.Pkg.Apis.Storage.V1Beta1
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , bytestring
+                     , text
+                     , unordered-containers

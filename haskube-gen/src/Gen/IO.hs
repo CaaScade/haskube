@@ -84,3 +84,6 @@ removeDirectoryIfExists :: FilePath -> IO ()
 removeDirectoryIfExists directory = do
   exists <- doesDirectoryExist directory
   when exists $ removeDirectoryRecursive directory
+
+printModules :: [Text] -> IO ()
+printModules = mapM_ $ putStrLn . ("                     , " <> ) . T.unpack

@@ -13,6 +13,7 @@ import           Control.Lens.Traversal
 import qualified Data.Aeson             as AE
 import qualified Data.ByteString.Lazy   as BS
 import qualified Data.HashMap.Strict    as H
+import           Data.List              (sort)
 import           Data.Monoid
 import qualified Data.Swagger           as S
 import           Data.Text              (unpack)
@@ -33,7 +34,8 @@ main = do
       writeFile "haskube.txt" $ ppShow types
       BS.writeFile "haskube.json" $ AE.encode types
       let modules = mkModules types
-          outputDir = "output/src/"
+          outputDir = "../haskube/src/"
           f (key, val) = writeModule outputDir key val
-      removeDirectoryIfExists outputDir
+      --removeDirectoryIfExists outputDir
       mapM_ f $ H.toList modules
+      printModules . sort $ H.keys modules
