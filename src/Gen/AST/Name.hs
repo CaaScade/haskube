@@ -21,7 +21,7 @@ import qualified Data.Swagger               as S
 import qualified Data.Swagger.Internal      as S
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
-import           Text.Parsec
+import           Text.Parsec (runParser)
 import           Text.Parsec.Char
 import           Text.Parsec.Combinator
 import           Text.Parsec.Text           (Parser)
@@ -46,10 +46,14 @@ parseTypeName_ segments = do
   where
     moduleName_ = T.intercalate "." (T.toTitle <$> init segments)
 
+-- | Haskell identifiers can only contain [alpha|num|underscore|quote].
+parseIdentifierChar :: Parser Char
+parseIdentifierChar = alphaNum <|> fmap (const '_') (noneOf ".")
+
 parseRef :: Parser ExternalTypeName
 parseRef = do
   _ <- string "io.k8s."
-  segments <- many1 (noneOf ".") `sepBy1` char '.'
+  segments <- many1 parseIdentifierChar `sepBy1` char '.'
   eof
   parseTypeName_ . fmap T.pack $ segments
 
