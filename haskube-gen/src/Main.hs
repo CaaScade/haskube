@@ -20,6 +20,7 @@ import           Data.Text              (unpack)
 import           Text.Show.Pretty       (pPrint, ppShow)
 
 import           Gen.AST
+import           Gen.AST.BuiltIn        (builtInNewtypesModule')
 import           Gen.AST.Class
 import           Gen.AST.Code
 import           Gen.IO
@@ -36,6 +37,7 @@ main = do
       let modules = mkModules types
           outputDir = "../haskube/src/"
           f (key, val) = writeModule outputDir key val
-      --removeDirectoryIfExists outputDir
+      removeDirectoryIfExists outputDir
       mapM_ f $ H.toList modules
-      printModules . sort $ H.keys modules
+      writeBuiltInModule outputDir
+      printModules . sort $ builtInNewtypesModule':H.keys modules

@@ -9,9 +9,11 @@ import           Data.Text     (Text)
 import           Gen.AST.Class
 import           Gen.AST.Types
 
--- TODO: Create newtypes for Kubernetes.Types.Base types.
 builtInNewtypesModule :: Maybe Text
-builtInNewtypesModule = Just "Kubernetes.Types.Base"
+builtInNewtypesModule = Just builtInNewtypesModule'
+
+builtInNewtypesModule' :: Text
+builtInNewtypesModule' = "Kubernetes.Types.Base"
 
 -- TODO: There are other "format"s as well--i.e. "email" for "string"
 int32Name = SimpleName (Just "Data.Int") "Int32"

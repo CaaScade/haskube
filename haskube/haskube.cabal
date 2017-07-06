@@ -40,9 +40,11 @@ library
                      , Kubernetes.Pkg.Apis.Settings.V1Alpha1
                      , Kubernetes.Pkg.Apis.Storage.V1
                      , Kubernetes.Pkg.Apis.Storage.V1Beta1
+                     , Kubernetes.Types.Base
   hs-source-dirs:      src
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , text
+                     , time
                      , unordered-containers

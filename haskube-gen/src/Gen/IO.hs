@@ -30,6 +30,7 @@ import           Text.Show.Pretty             (pPrint, ppShow)
 import           System.Directory
 
 import           Gen.AST
+import           Gen.AST.BuiltIn              (builtInNewtypesModule')
 import           Gen.AST.Class
 import           Gen.AST.Types
 
@@ -73,12 +74,21 @@ pathDirectory path = if len > 0 then take len path else "."
         f lastIndex (index, char) = if char == '/' then index else lastIndex
 
 -- | NOTE: Expects a trailing slash in the prefix.
-writeModule :: FilePath -> Text -> Module ann -> IO ()
-writeModule prefix moduleName aModule = do
+writeModule_ :: FilePath -> Text -> String -> IO ()
+writeModule_ prefix moduleName moduleContents = do
   createDirectoryIfMissing True directory
-  writeFile filePath $ prettyPrint aModule
+  writeFile filePath moduleContents
   where filePath = prefix <> modulePath moduleName
         directory = pathDirectory filePath
+
+writeModule :: FilePath -> Text -> Module ann -> IO ()
+writeModule prefix moduleName aModule =
+  writeModule_ prefix moduleName $ prettyPrint aModule
+
+writeBuiltInModule :: FilePath -> IO ()
+writeBuiltInModule prefix = do
+  contents <- readFile "template/built-ins.hs"
+  writeModule_ prefix builtInNewtypesModule' contents
 
 removeDirectoryIfExists :: FilePath -> IO ()
 removeDirectoryIfExists directory = do
