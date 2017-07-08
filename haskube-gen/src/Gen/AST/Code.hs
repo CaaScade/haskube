@@ -42,6 +42,12 @@ mkUnqual = UnQual mempty . mkIdent
 mkQual :: Text -> Text -> QName Ann
 mkQual moduleName = Qual mempty (mkModuleName moduleName) . mkIdent
 
+mkQVarOp :: Text -> Text -> QOp Ann
+mkQVarOp moduleName = QVarOp mempty . mkQual moduleName
+
+mkQVarOp' :: Text -> QOp Ann
+mkQVarOp' = QVarOp mempty . mkUnqual
+
 mkQName :: (MonadModule m) => Maybe Text -> Text -> m (QName Ann)
 mkQName Nothing typeName = return . mkUnqual $ typeName
 mkQName (Just moduleName) typeName = do
