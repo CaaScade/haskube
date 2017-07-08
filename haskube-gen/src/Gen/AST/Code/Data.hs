@@ -81,7 +81,7 @@ mkType (G.TupleName valueNames) = do
   return $ TyTuple mempty Boxed valueTypes
 mkType (G.DictionaryName valueName) = do
   dictType <- mkType' (Just "Data.HashMap.Strict") "HashMap"
-  stringType <- mkType' Nothing "String"
+  stringType <- mkType' (Just "Data.Text") "Text"
   valueType <- mkType valueName
   return $ mkTyApp [dictType, stringType, valueType]
 mkType (G.MaybeName valueName) = do
@@ -96,7 +96,7 @@ mkFieldDecl name aType = FieldDecl mempty [mkIdent name] aType
 -- | NOTE: Prefixes the field name with "_".
 mkFieldDecl' :: (MonadModule m) => G.Field -> m (FieldDecl Ann)
 mkFieldDecl' G.Field {..} = do
-  let name = either (const "additionalModules") id $ _fieldName
+  let name = either (const "additionalProperties") id $ _fieldName
       description = maybeToList _fieldDescription
   fieldType <- mkType _fieldType
   return $ FieldDecl description [mkIdent $ "_" <> name] fieldType
