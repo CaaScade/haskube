@@ -5,9 +5,12 @@ module Gen.AST.Code.JSON where
 
 import           Language.Haskell.Exts
 
+import Data.Either (either)
+import           Data.Foldable         (foldl')
 import           Data.Text             (Text)
 
-import           Gen.AST.Code
+import           Gen.AST.Code.Data
+import           Gen.AST.Code.Types
 import qualified Gen.AST.Types         as G
 
 mkInstHead :: QName Ann -> Type Ann -> InstHead Ann
@@ -29,7 +32,7 @@ aesonImport = ImportDecl
   , importSrc = False
   , importSafe = False
   , importPkg = Nothing
-  , importAs = Just $ mkModuleName "AE"
+  , importAs = Just $ mkModuleName aesonPrefix
   , importSpecs = Nothing
   }
 
@@ -67,9 +70,14 @@ mkNewtypeParseJSON G.Newtype{..} = InsDecl mempty $ FunBind mempty [match]
         conName = G._externalName _newtypeName
 
 qnFromJSON :: QName Ann
-qnFromJSON = mkQual "AE" "FromJSON"
+qnFromJSON = mkQual aesonPrefix "FromJSON"
 
 mkNewtypeFromJSON :: G.Newtype -> Decl Ann
 mkNewtypeFromJSON aNewtype@G.Newtype{..} =
   InstDecl mempty Nothing (mkInstRule qnFromJSON aType) $ Just [mkNewtypeParseJSON aNewtype]
   where aType = TyCon mempty . mkUnqual $ G._externalName _newtypeName
+
+mkFromJSONs :: [G.Type] -> [Decl Ann]
+mkFromJSONs types = foldl' f [] types
+  where f insts (Left aNewtype) = mkNewtypeFromJSON aNewtype:insts
+        f insts (Right _) = insts

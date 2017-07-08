@@ -22,7 +22,7 @@ import           Text.Show.Pretty       (pPrint, ppShow)
 import           Gen.AST
 import           Gen.AST.BuiltIn        (builtInNewtypesModule')
 import           Gen.AST.Class
-import           Gen.AST.Code
+import           Gen.AST.Code.Module
 import           Gen.IO
 
 main :: IO ()
