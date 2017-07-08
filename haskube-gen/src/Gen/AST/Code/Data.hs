@@ -15,6 +15,10 @@ import Data.Maybe (maybeToList)
 import           Gen.AST.Code.Types
 import qualified Gen.AST.Types         as G
 
+-- | Turn a newtype constructor name into the field name.
+toNewtypeFieldName :: Text -> Text
+toNewtypeFieldName conName = "_un" <> conName
+
 mkIdent :: Text -> Name Ann
 mkIdent = Ident mempty . unpack
 
@@ -113,7 +117,7 @@ mkQualConDecl = QualConDecl mempty Nothing Nothing
 mkNewtypeRHS :: (MonadModule m) => Text -> G.TypeName -> m (QualConDecl Ann)
 mkNewtypeRHS name typeName = do
   aType <- mkType typeName
-  return . mkQualConDecl $ mkRecDecl' name ("un" <> name) aType
+  return . mkQualConDecl $ mkRecDecl' name (toNewtypeFieldName name) aType
 
 mkDataRHS :: (MonadModule m) => Text -> [G.Field] -> m (QualConDecl Ann)
 mkDataRHS name fields_ = do

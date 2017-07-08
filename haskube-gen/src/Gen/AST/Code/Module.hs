@@ -49,7 +49,7 @@ mkModule moduleName types =
   where run = flip runReader moduleName
         imports = aesonImport:(run . mkImports $ importedModules types)
         dataDecls = run . mapM (either mkNewtype mkData) $ types
-        instDecls = mkFromJSONs types
+        instDecls = mkJSONs types
         pragmas = [mkLanguagePragma "DuplicateRecordFields"]
         moduleHead = ModuleHead mempty (mkModuleName moduleName) Nothing Nothing
 
