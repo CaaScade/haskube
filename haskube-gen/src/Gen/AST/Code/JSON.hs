@@ -40,7 +40,7 @@ mkVarExp' :: Text -> Exp Ann
 mkVarExp' = Var mempty . mkUnqual
 
 xDot :: QOp Ann
-xDot = mkQVarOp' "."
+xDot = mkQVarOp_' "."
 
 xFmap :: Exp Ann
 xFmap = mkVarExp' "fmap"
