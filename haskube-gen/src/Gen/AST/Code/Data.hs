@@ -4,94 +4,19 @@
 
 module Gen.AST.Code.Data where
 
-import Control.Monad.Reader
+import           Control.Monad.Reader
 
 import           Language.Haskell.Exts
 
-import           Data.Monoid
-import           Data.Text             (Text, unpack)
-import Data.Maybe (maybeToList)
+import           Data.Maybe               (maybeToList)
+import           Data.Text                (Text)
 
+import           Gen.AST.Code.Combinators
 import           Gen.AST.Code.Types
-import qualified Gen.AST.Types         as G
-
--- | Turn a newtype constructor name into the field name.
-toNewtypeFieldName :: Text -> Text
-toNewtypeFieldName conName = "_un" <> conName
-
-toRecordFieldName :: Text -> Text
-toRecordFieldName fieldName = "_" <> fieldName
-
-mkIdent :: Text -> Name Ann
-mkIdent = Ident mempty . unpack
-
-mkSymbol :: Text -> Name Ann
-mkSymbol = Symbol mempty . unpack
-
-mkModuleName :: Text -> ModuleName Ann
-mkModuleName = ModuleName mempty . unpack
+import qualified Gen.AST.Types            as G
 
 mkLanguagePragma :: Text -> ModulePragma Ann
 mkLanguagePragma = LanguagePragma mempty . pure . mkIdent
-
-mkUnqual :: Text -> QName Ann
-mkUnqual = UnQual mempty . mkIdent
-
--- | The underscore means it's for symbols. (lol)
-mkUnqual_ :: Text -> QName Ann
-mkUnqual_ = UnQual mempty . mkSymbol
-
-mkQual :: Text -> Text -> QName Ann
-mkQual moduleName = Qual mempty (mkModuleName moduleName) . mkIdent
-
-mkQual_ :: Text -> Text -> QName Ann
-mkQual_ moduleName = Qual mempty (mkModuleName moduleName) . mkSymbol
-
-mkQVarOp :: Text -> Text -> QOp Ann
-mkQVarOp moduleName = QVarOp mempty . mkQual moduleName
-
-mkQVarOp_ :: Text -> Text -> QOp Ann
-mkQVarOp_ moduleName = QVarOp mempty . mkQual_ moduleName
-
-mkQVarOp' :: Text -> QOp Ann
-mkQVarOp' = QVarOp mempty . mkUnqual
-
-mkQVarOp_' :: Text -> QOp Ann
-mkQVarOp_' = QVarOp mempty . mkUnqual_
-
-mkQName :: (MonadModule m) => Maybe Text -> Text -> m (QName Ann)
-mkQName Nothing typeName = return . mkUnqual $ typeName
-mkQName (Just moduleName) typeName = do
-  currentModule <- ask
-  return $
-    if currentModule == moduleName
-      then mkUnqual typeName
-      else mkQual moduleName typeName
-
-mkTyApp :: [Type Ann] -> Type Ann
-mkTyApp types = foldl1 f types
-  where f accum0 aType = TyApp mempty accum0 aType
-
-mkType' :: (MonadModule m) => Maybe Text -> Text -> m (Type Ann)
-mkType' moduleName typeName = TyCon mempty <$> mkQName moduleName typeName
-
-mkType :: (MonadModule m) => G.TypeName -> m (Type Ann)
-mkType (G.ArrayName valueName) = do
-  valueType <- mkType valueName
-  return $ TyList mempty valueType
-mkType (G.TupleName valueNames) = do
-  valueTypes <- mapM mkType valueNames
-  return $ TyTuple mempty Boxed valueTypes
-mkType (G.DictionaryName valueName) = do
-  dictType <- mkType' (Just "Data.HashMap.Strict") "HashMap"
-  stringType <- mkType' (Just "Data.Text") "Text"
-  valueType <- mkType valueName
-  return $ mkTyApp [dictType, stringType, valueType]
-mkType (G.MaybeName valueName) = do
-  maybeType <- mkType' Nothing "Maybe"
-  valueType <- mkType valueName
-  return $ mkTyApp [maybeType, valueType]
-mkType (G.SimpleName moduleName typeName) = mkType' moduleName typeName
 
 mkFieldDecl :: Text -> Type Ann -> FieldDecl Ann
 mkFieldDecl name aType = FieldDecl mempty [mkIdent name] aType

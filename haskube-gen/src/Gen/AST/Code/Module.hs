@@ -19,6 +19,7 @@ import           Language.Haskell.Exts
 import qualified Data.HashMap.Strict   as H
 
 import qualified Gen.AST.BuiltIn       as G
+import           Gen.AST.Code.Combinators
 import           Gen.AST.Code.Data
 import           Gen.AST.Code.JSON
 import           Gen.AST.Code.Types

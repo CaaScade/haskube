@@ -5,22 +5,15 @@ module Gen.AST.Code.JSON where
 
 import           Language.Haskell.Exts
 
-import           Data.Either           (either, rights)
-import           Data.Foldable         (foldl')
-import           Data.Text             (Text, unpack)
+import           Data.Either              (either, rights)
+import           Data.Foldable            (foldl')
+import           Data.Text                (Text, unpack)
 
-import qualified Gen.AST.BuiltIn       as G
+import qualified Gen.AST.BuiltIn          as G
+import           Gen.AST.Code.Combinators
 import           Gen.AST.Code.Data
 import           Gen.AST.Code.Types
-import qualified Gen.AST.Types         as G
-
-mkInstHead :: QName Ann -> Type Ann -> InstHead Ann
-mkInstHead className aType =
-  IHApp mempty (IHCon mempty className) aType
-
-mkInstRule :: QName Ann -> Type Ann -> InstRule Ann
-mkInstRule className aType =
-  IRule mempty Nothing Nothing $ mkInstHead className aType
+import qualified Gen.AST.Types            as G
 
 aesonPrefix :: Text
 aesonPrefix = "AE"
@@ -48,12 +41,6 @@ aesonImports =
     , importSpecs = Nothing
     }
   ]
-
-mkVarExp :: Text -> Text -> Exp Ann
-mkVarExp moduleName = Var mempty . mkQual moduleName
-
-mkVarExp' :: Text -> Exp Ann
-mkVarExp' = Var mempty . mkUnqual
 
 xDot :: QOp Ann
 xDot = mkQVarOp_' "."
@@ -106,24 +93,8 @@ xFancyDollar = mkQVarOp_' "<$>"
 xFancyStar :: QOp Ann
 xFancyStar = mkQVarOp_' "<*>"
 
-mkApp :: Exp Ann -> Exp Ann -> Exp Ann
-mkApp = App mempty
-
-mkInfixApp :: Exp Ann -> QOp Ann -> Exp Ann -> Exp Ann
-mkInfixApp = InfixApp mempty
-
--- | Variable for a field (like it's been record-wildcarded)
-mkFieldName :: Text -- ^ field name without the leading underscore
-            -> Exp Ann
-mkFieldName = mkVarExp' . toRecordFieldName
-
 xParseAddlProps :: Exp Ann
 xParseAddlProps = mkVarExp G.builtInNewtypesModule' "parseAddlProps"
-
--- | Make a string literal.
-mkString :: Text -> Exp Ann
-mkString text_ = Lit mempty $ String mempty text text
-  where text = unpack text_
 
 {- | String literal to be used to index into a JSON object.
 It should be unaltered from the OpenAPI spec.
@@ -200,12 +171,6 @@ qnFromJSON = mkQual aesonPrefix "FromJSON"
 
 qnToJSON :: QName Ann
 qnToJSON = mkQual aesonPrefix "ToJSON"
-
-tNewtype :: G.Newtype -> Type Ann
-tNewtype G.Newtype{..} = TyCon mempty . mkUnqual $ G._externalName _newtypeName
-
-tData :: G.Data -> Type Ann
-tData G.Data{..} = TyCon mempty . mkUnqual $ G._externalName _dataName
 
 mkNewtypeFromJSON :: G.Newtype -> Decl Ann
 mkNewtypeFromJSON aNewtype =
