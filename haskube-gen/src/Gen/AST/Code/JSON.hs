@@ -5,7 +5,7 @@ module Gen.AST.Code.JSON where
 
 import           Language.Haskell.Exts
 
-import           Data.Either              (either, rights)
+import           Data.Either              (either, rights, lefts)
 import           Data.Foldable            (foldl')
 import           Data.Text                (Text, unpack)
 
@@ -85,6 +85,10 @@ pInvalid = PVar mempty $ mkIdent "invalid"
 xDotColon :: QOp Ann
 xDotColon = mkQVarOp_ aesonPrefix ".:"
 
+-- | Data.Aeson's "to JSON key-value pair" operator
+xDotEquals :: QOp Ann
+xDotEquals = mkQVarOp_ aesonPrefix ".="
+
 -- | <$>
 xFancyDollar :: QOp Ann
 xFancyDollar = mkQVarOp_' "<$>"
@@ -96,6 +100,9 @@ xFancyStar = mkQVarOp_' "<*>"
 xParseAddlProps :: Exp Ann
 xParseAddlProps = mkVarExp G.builtInNewtypesModule' "parseAddlProps"
 
+xAddAddlProps :: Exp Ann
+xAddAddlProps = mkVarExp G.builtInNewtypesModule' "addAddlProps"
+
 {- | String literal to be used to index into a JSON object.
 It should be unaltered from the OpenAPI spec.
 -}
@@ -105,6 +112,10 @@ mkFieldString = mkString
 xTypeMismatch :: Text -> Exp Ann
 xTypeMismatch conName =
   mkApp (mkApp (mkVarExp aesonPrefix "typeMismatch") (mkString conName)) xInvalid
+
+-- | AE.object
+xObject :: Exp Ann
+xObject = mkVarExp aesonPrefix "object"
 
 {- |
 essentially, field -> "obj .: fieldName"
@@ -118,7 +129,26 @@ xParseFields fields = f <$> fields
         Left G.AdditionalProperties ->
           mkApp (mkApp xParseAddlProps normalFieldNames) xObj
         Right fieldName -> mkInfixApp xObj xDotColon $ mkFieldString fieldName
-    normalFieldNames = List mempty $ mkFieldString <$> (rights $ G._fieldName <$> fields)
+    normalFieldNames =
+      List mempty $ mkFieldString <$> getNormalFieldNames fields
+
+{- |
+object ["name" .= _name, "age" .= _age]
+-}
+xPropsToJSON :: [Text] -> Exp Ann
+xPropsToJSON props =
+  mkApp xObject (List mempty $ f <$> props)
+  where f prop = mkInfixApp (mkString prop) xDotEquals (mkFieldName prop)
+
+xAddlPropsToJSON :: Exp Ann -> Exp Ann
+xAddlPropsToJSON valueExp =
+  mkApp (mkApp xAddAddlProps xAddlProps) valueExp
+
+getNormalFieldNames :: [G.Field] -> [Text]
+getNormalFieldNames = rights . fmap G._fieldName
+
+hasAddlPropsField :: [G.Field] -> Bool
+hasAddlPropsField = not . null . lefts . fmap G._fieldName
 
 mkNewtypeParseJSONRHS :: Text -> Rhs Ann
 mkNewtypeParseJSONRHS conName = UnGuardedRhs mempty exp
@@ -166,6 +196,25 @@ mkDataParseJSON G.Data {..} = InsDecl mempty $ FunBind mempty [match0, match1]
         Nothing
     conName = G._externalName _dataName
 
+mkDataToJSONRHS :: [G.Field] -> Rhs Ann
+mkDataToJSONRHS fields = UnGuardedRhs mempty exp
+  where exp = if hasAddlPropsField fields then xAddlPropsToJSON propsExp
+              else propsExp
+        propsExp = xPropsToJSON $ getNormalFieldNames fields
+
+mkDataToJSON_ :: G.Data -> InstDecl Ann
+mkDataToJSON_ G.Data {..} = InsDecl mempty $ FunBind mempty [match]
+  where
+    match =
+      Match
+        mempty
+        nToJSON
+        [pat]
+        (mkDataToJSONRHS _dataFields)
+        Nothing
+    conName = G._externalName _dataName
+    pat = if null _dataFields then pCon conName else pRecordWildcard conName
+
 qnFromJSON :: QName Ann
 qnFromJSON = mkQual aesonPrefix "FromJSON"
 
@@ -186,10 +235,18 @@ mkNewtypeToJSON aNewtype =
   where
     aType = tNewtype aNewtype
 
+-- TODO: override default toEncoding
 mkDataFromJSON :: G.Data -> Decl Ann
 mkDataFromJSON aData =
   InstDecl mempty Nothing (mkInstRule qnFromJSON aType) $
   Just [mkDataParseJSON aData]
+  where aType = tData aData
+
+-- TODO: override default toEncoding
+mkDataToJSON :: G.Data -> Decl Ann
+mkDataToJSON aData =
+  InstDecl mempty Nothing (mkInstRule qnToJSON aType) $
+  Just [mkDataToJSON_ aData]
   where aType = tData aData
 
 mkJSONs :: [G.Type] -> [Decl Ann]
@@ -197,4 +254,4 @@ mkJSONs types = foldl' f [] types
   where
     f insts (Left aNewtype) =
       mkNewtypeFromJSON aNewtype : mkNewtypeToJSON aNewtype : insts
-    f insts (Right aData) = mkDataFromJSON aData : insts
+    f insts (Right aData) = mkDataFromJSON aData : mkDataToJSON aData : insts

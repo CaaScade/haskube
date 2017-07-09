@@ -124,3 +124,12 @@ toRecordFieldName fieldName = "_" <> fieldName
 mkFieldName :: Text -- ^ field name without the leading underscore
             -> Exp Ann
 mkFieldName = mkVarExp' . toRecordFieldName
+
+xAddlProps :: Exp Ann
+xAddlProps = mkVarExp' "_additionalProperties"
+
+pRecordWildcard :: Text -> Pat Ann
+pRecordWildcard conName = PRec mempty (mkUnqual conName) [PFieldWildcard mempty]
+
+pCon :: Text -> Pat Ann
+pCon conName = PApp mempty (mkUnqual conName) []
