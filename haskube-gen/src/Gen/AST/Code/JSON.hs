@@ -125,8 +125,11 @@ mkString :: Text -> Exp Ann
 mkString text_ = Lit mempty $ String mempty text text
   where text = unpack text_
 
+{- | String literal to be used to index into a JSON object.
+It should be unaltered from the OpenAPI spec.
+-}
 mkFieldString :: Text -> Exp Ann
-mkFieldString = mkString . toRecordFieldName
+mkFieldString = mkString
 
 xTypeMismatch :: Text -> Exp Ann
 xTypeMismatch conName =
