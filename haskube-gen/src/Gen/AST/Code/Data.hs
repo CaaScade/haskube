@@ -19,6 +19,9 @@ import qualified Gen.AST.Types         as G
 toNewtypeFieldName :: Text -> Text
 toNewtypeFieldName conName = "_un" <> conName
 
+toRecordFieldName :: Text -> Text
+toRecordFieldName fieldName = "_" <> fieldName
+
 mkIdent :: Text -> Name Ann
 mkIdent = Ident mempty . unpack
 
@@ -99,7 +102,7 @@ mkFieldDecl' G.Field {..} = do
   let name = either (const "additionalProperties") id $ _fieldName
       description = maybeToList _fieldDescription
   fieldType <- mkType _fieldType
-  return $ FieldDecl description [mkIdent $ "_" <> name] fieldType
+  return $ FieldDecl description [mkIdent $ toRecordFieldName name] fieldType
 
 mkConDecl' :: Text -> Type Ann -> ConDecl Ann
 mkConDecl' name = ConDecl mempty (mkIdent name) . pure

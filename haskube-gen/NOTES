@@ -7,3 +7,9 @@ io.k8s.kubernetes.pkg.apis.authorization.v1beta1.SubjectAccessReviewSpec: {
 },
 
 http://swagger.io/specification/#dataTypeFormat
+
+-- io.k8s.apimachiner.pkg.apis.meta.v1.Patch has an empty definition
+instance AE.FromJSON Patch where
+        parseJSON (AE.Object obj) = return Patch
+        parseJSON invalid = AE.typeMismatch "Patch" invalid
+

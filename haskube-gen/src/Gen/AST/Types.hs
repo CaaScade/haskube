@@ -37,6 +37,7 @@ data Newtype = Newtype
   , _newtypeDescription :: Maybe Text
   } deriving (Show, Generic)
 
+-- TODO: _fieldType for normal fields, _fieldValueType for additionalProperties
 data Field = Field
   { _fieldName        :: Either AdditionalProperties Text
   , _fieldType        :: TypeName

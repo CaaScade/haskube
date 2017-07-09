@@ -42,8 +42,8 @@ instance AE.ToJSON Null where
 parseAddlProps
   :: forall a.
      (AE.FromJSON a)
-  => [Text] -> AE.Value -> AE.Parser (H.HashMap Text a)
-parseAddlProps ignoredProps_ (AE.Object obj) =
+  => [Text] -> AE.Object -> AE.Parser (H.HashMap Text a)
+parseAddlProps ignoredProps_ obj =
   foldM f H.empty . filter isNotIgnored $ HL.toList obj
   where ignoredProps = HS.fromList ignoredProps_
         isNotIgnored (prop, _) = not $ prop `HS.member` ignoredProps
@@ -51,7 +51,6 @@ parseAddlProps ignoredProps_ (AE.Object obj) =
         f addlProps (prop, val_) = do
           val <- AE.parseJSON val_
           return $ H.insert prop val addlProps
-parseAddlProps _ invalid = AE.typeMismatch "Additional Properties HashMap" invalid
 
 addAddlProps :: forall a. (AE.ToJSON a) => H.HashMap Text a -> AE.Value -> AE.Value
 addAddlProps addlProps (AE.Object props0) =
