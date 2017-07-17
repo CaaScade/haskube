@@ -21,6 +21,7 @@ executable haskube-web
                      , base
                      , bytestring
                      , containers
+                     , haskube
                      , lens
                      , mtl
                      , reflex
