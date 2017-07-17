@@ -65,6 +65,9 @@ top y = top' $ px y
 top' :: Text -> StyleMap
 top' y = "top" =: y
 
+color :: Text -> StyleMap
+color color = "color" =: color
+
 backgroundColor :: Text -> StyleMap
 backgroundColor color = "background-color" =: color
 
@@ -110,8 +113,39 @@ justifyContent j = "justify-content" =: j
 justifyContentCenter :: StyleMap
 justifyContentCenter = justifyContent "center"
 
+textAlignCenter :: StyleMap
+textAlignCenter = "text-align" =: "center"
+
+margin :: Int -> StyleMap
+margin pixels = marginTRBL pixels pixels pixels pixels
+
+marginVH :: Int -> Int -> StyleMap
+marginVH vertical horizontal = marginTRBL vertical horizontal vertical horizontal
+
+marginTRBL :: Int -> Int -> Int -> Int -> StyleMap
+marginTRBL top right bottom left =
+  marginTRBL' (px top) (px right) (px bottom) (px left)
+
+marginTRBL' :: Text -> Text -> Text -> Text -> StyleMap
+marginTRBL' top right bottom left =
+  "margin" =: (top <> " " <> right <> " " <> bottom <> " " <> left)
+
 noMargin :: StyleMap
 noMargin = "margin" =: "0"
+
+padding :: Int -> StyleMap
+padding pixels = paddingTRBL pixels pixels pixels pixels
+
+paddingVH :: Int -> Int -> StyleMap
+paddingVH vertical horizontal = paddingTRBL vertical horizontal vertical horizontal
+
+paddingTRBL :: Int -> Int -> Int -> Int -> StyleMap
+paddingTRBL top right bottom left =
+  paddingTRBL' (px top) (px right) (px bottom) (px left)
+
+paddingTRBL' :: Text -> Text -> Text -> Text -> StyleMap
+paddingTRBL' top right bottom left =
+  "padding" =: (top <> " " <> right <> " " <> bottom <> " " <> left)
 
 noPadding :: StyleMap
 noPadding = "padding" =: "0"
