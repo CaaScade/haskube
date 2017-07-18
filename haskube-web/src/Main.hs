@@ -21,7 +21,8 @@ import qualified Web.Styles    as S
 
 main :: IO ()
 main = mainWidgetWithHead headEl $ do
-  splashEl
+  centeringDiv $ do
+    historyGrid
 
 css :: Text
 css = toCssText $ body <> html
@@ -38,6 +39,15 @@ fontSize x = fontSize' $ px x
 
 fontSize' :: Text -> StyleMap
 fontSize' size = "font-size" =: size
+
+fontWeightBold :: StyleMap
+fontWeightBold = "font-weight" =: "bold"
+
+fontWeightMedium :: StyleMap
+fontWeightMedium = "font-weight" =: "medium"
+
+fontWeightNormal :: StyleMap
+fontWeightNormal = "font-weight" =: "normal"
 
 headEl :: (MonadWidget t m) => m ()
 headEl = do
@@ -58,3 +68,63 @@ splashEl =
          S.padding 20) $ do
         text
           "o hello my name is oh what is that you have is it tasty food potatoes are wow"
+
+postgresCell' :: (MonadWidget t m) => m ()
+postgresCell' =
+  divAttr (toAttr mempty) $ do
+    divAttr
+      (toAttr $
+       fontSize 24 <> fontWeightBold <> S.paddingTRBL 10 10 5 10 <>
+       S.color S.base1 <>
+       S.backgroundColor S.base03) $ do text "PostgreSQL"
+    divAttr
+      (toAttr $
+       fontSize 18 <> fontWeightMedium <> S.paddingTRBL 0 10 10 10 <>
+       S.color S.base01 <>
+       S.backgroundColor S.base3) $ do
+      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "masters 1 +/-"
+      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "slaves 1 +/-"
+
+postgresCell :: (MonadWidget t m) => m ()
+postgresCell =
+  divAttr (toAttr mempty) $ do
+    divAttr
+      (toAttr $
+       fontSize 24 <> fontWeightBold <> S.paddingTRBL 10 10 5 10 <>
+       S.color S.base1 <>
+       S.backgroundColor S.base03) $ do text "PostgreSQL"
+    divAttr
+      (toAttr $
+       fontSize 18 <> fontWeightMedium <> S.paddingTRBL 0 10 10 10 <>
+       S.color S.base01 <>
+       S.backgroundColor S.base2) $ do
+      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "masters 1"
+      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "slaves 1"
+
+currentCell :: (MonadWidget t m) => m ()
+currentCell =
+  columnDiv $ do
+    divAttr
+      (toAttr $
+       fontSize 20 <> fontWeightMedium <> S.paddingTRBL 10 10 5 20 <>
+       S.color S.base00 <>
+       S.backgroundColor S.base3) $ do text "Running"
+    divAttr (toAttr $ S.backgroundColor S.base3 <> S.paddingTRBL 0 10 10 10) $ do
+      postgresCell
+
+editingCell :: (MonadWidget t m) => m ()
+editingCell =
+  columnDiv $ do
+    divAttr
+      (toAttr $
+       fontSize 20 <> fontWeightMedium <> S.paddingTRBL 10 10 5 20 <>
+       S.color S.base00 <>
+       S.backgroundColor S.base2) $ do text "Running"
+    divAttr (toAttr $ S.backgroundColor S.base2 <> S.paddingTRBL 0 10 10 10) $ do
+      postgresCell'
+
+historyGrid :: (MonadWidget t m) => m ()
+historyGrid =
+  rowDiv $ do
+    currentCell
+    editingCell
