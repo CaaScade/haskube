@@ -52,86 +52,67 @@ headEl :: (MonadWidget t m) => m ()
 headEl = do
   el "style" $ text css
 
-{-
-splashEl :: (MonadWidget t m) => m ()
-splashEl =
-  centeringDiv $ do
-    divAttr (toAttr $ S.width 400) $ do
-      divAttr
-        (toAttr $
-         fontSize 38 <> S.color S.base01 <> S.textAlignCenter <>
-         S.backgroundColor S.base2 <>
-         S.paddingVH 40 0) $ do text "Swag"
-      divAttr
-        (toAttr $
-         fontSize 14 <> S.color S.base00 <> S.backgroundColor S.base3 <>
-         S.padding 20) $ do
-        text
-          "o hello my name is oh what is that you have is it tasty food potatoes are wow"
--}
-
 editPostgresCell :: (MonadWidget t m) => m ()
 editPostgresCell =
-  divAttr (toAttr mempty) $ do
-    divAttr
-      (toAttr $
-       fontSize 24 <> fontWeightBold <> S.paddingTRBL 10 10 5 10 <>
+  divStyle mempty $ do
+    divStyle
+      (fontSize 24 <> fontWeightBold <> S.paddingTRBL 10 10 5 10 <>
        S.color "white" <>
        S.backgroundColor "blue") $ do text "PostgreSQL"
-    divAttr
-      (toAttr $
-       fontSize 18 <> fontWeightMedium <> S.paddingTRBL 0 10 10 10 <>
+    divStyle
+      (fontSize 18 <> fontWeightMedium <> S.paddingTRBL 0 10 10 10 <>
        S.color "black" <>
        S.backgroundColor "white") $ do
-      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "masters 1 -/+"
-      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "slaves 1 -/+"
+      divStyle (S.paddingTRBL 10 0 0 0) $ do text "masters 1 -/+"
+      divStyle (S.paddingTRBL 10 0 0 0) $ do text "slaves 1 -/+"
 
 postgresCell :: (MonadWidget t m) => m ()
 postgresCell =
-  divAttr (toAttr mempty) $ do
-    divAttr
-      (toAttr $
-       fontSize 24 <> fontWeightBold <> S.paddingTRBL 10 10 5 10 <>
+  divStyle mempty $ do
+    divStyle
+      (fontSize 24 <> fontWeightBold <> S.paddingTRBL 10 10 5 10 <>
        S.color "white" <>
        S.backgroundColor "blue") $ do text "PostgreSQL"
-    divAttr
-      (toAttr $
-       fontSize 18 <> fontWeightMedium <> S.paddingTRBL 0 10 10 10 <>
+    divStyle
+      (fontSize 18 <> fontWeightMedium <> S.paddingTRBL 0 10 10 10 <>
        S.color "black" <>
        S.backgroundColor "white") $ do
-      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "masters 1"
-      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "slaves 1"
+      divStyle (S.paddingTRBL 10 0 0 0) $ do text "masters 1"
+      divStyle (S.paddingTRBL 10 0 0 0) $ do text "slaves 1"
 
 currentCell :: (MonadWidget t m) => m ()
 currentCell =
-  columnDiv $ do
-    divAttr
-      (toAttr $
-       fontSize 20 <> fontWeightMedium <> S.paddingTRBL 10 10 5 20 <>
+  divStyle (S.displayFlex <> S.flexCol) $ do
+    divStyle
+      (fontSize 20 <> fontWeightMedium <> S.paddingTRBL 10 10 5 20 <>
        S.color "white" <>
        S.backgroundColor "grey") $ do text "Running"
-    divAttr (toAttr $ S.backgroundColor "grey" <> S.paddingTRBL 0 10 10 10) $ do
+    divStyle (S.backgroundColor "grey" <> S.paddingTRBL 0 10 10 10) $ do
       postgresCell
 
 commitButton :: (MonadWidget t m) => m ()
 commitButton =
-  divAttr (toAttr $ fontSize 20 <> fontWeightMedium <> S.backgroundColor "green" <> S.color "white" <> S.marginTRBL 10 0 0 0 <> S.paddingVH 5 10) $ text "<- Commit"
+  divStyle
+    (fontSize 20 <> fontWeightMedium <> S.backgroundColor "green" <>
+     S.color "white" <>
+     S.marginTRBL 10 0 0 0 <>
+     S.paddingVH 5 10) $
+  text "<- Commit"
 
 editingCell :: (MonadWidget t m) => m ()
 editingCell =
-  columnDiv $ do
-    divAttr
-      (toAttr $
-       fontSize 20 <> fontWeightMedium <> S.paddingTRBL 10 10 5 20 <>
+  divStyle (S.displayFlex <> S.flexCol) $ do
+    divStyle
+      (fontSize 20 <> fontWeightMedium <> S.paddingTRBL 10 10 5 20 <>
        S.color "white" <>
        S.backgroundColor "grey") $ do text "Editing"
-    divAttr (toAttr $ S.backgroundColor "grey" <> S.paddingTRBL 0 10 10 10) $ do
+    divStyle (S.backgroundColor "grey" <> S.paddingTRBL 0 10 10 10) $ do
       editPostgresCell
       commitButton
 
 historyGrid :: (MonadWidget t m) => m ()
 historyGrid =
-  rowDiv $ do
+  divStyle (S.displayFlex <> S.flexRow <> S.backgroundColor "grey") $ do
     currentCell
-    divAttr (toAttr $ S.width 4 <> S.backgroundColor "white") $ return ()
+    divStyle (S.width 4 <> S.backgroundColor "white") $ return ()
     editingCell
