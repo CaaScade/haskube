@@ -158,3 +158,9 @@ fullHeight = height' "100%"
 
 fullWindow :: StyleMap
 fullWindow = fullHeight <> fullWidth
+
+userSelectNone :: StyleMap
+userSelectNone = "user-select" =: "none" <> "-webkit-user-select" =: "none"
+
+cursorArrow :: StyleMap
+cursorArrow = "cursor" =: "default"

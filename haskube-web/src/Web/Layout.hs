@@ -33,10 +33,18 @@ centeringDiv content =
      "center")
     content
 
+div' :: (MonadWidget t m) => M.Map Text Text -> StyleMap -> m a -> m (El t, a)
+div' attrs styles = elAttr' "div" (attrs <> toAttr styles)
+
 divStyle :: (MonadWidget t m) => StyleMap -> m a -> m a
 divStyle = elAttr "div" . toAttr
 divStyle' :: (MonadWidget t m) => StyleMap -> m a -> m (El t, a)
 divStyle' = elAttr' "div" . toAttr
+
+buttonStyle :: (MonadWidget t m) => Text -> StyleMap -> m (Event t ())
+buttonStyle label style = do
+  (e, _) <- elAttr' "button" (toAttr style) $ text label
+  return $ domEvent Click e
 
 {-
 data Div m a = Div
