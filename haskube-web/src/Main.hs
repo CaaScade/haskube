@@ -15,7 +15,6 @@ import qualified Data.Text     as T
 
 import           Backend.Types
 import           Web.Layout
-import qualified Web.Solarized as S
 import           Web.Style
 import qualified Web.Styles    as S
 
@@ -53,6 +52,7 @@ headEl :: (MonadWidget t m) => m ()
 headEl = do
   el "style" $ text css
 
+{-
 splashEl :: (MonadWidget t m) => m ()
 splashEl =
   centeringDiv $ do
@@ -68,22 +68,23 @@ splashEl =
          S.padding 20) $ do
         text
           "o hello my name is oh what is that you have is it tasty food potatoes are wow"
+-}
 
-postgresCell' :: (MonadWidget t m) => m ()
-postgresCell' =
+editPostgresCell :: (MonadWidget t m) => m ()
+editPostgresCell =
   divAttr (toAttr mempty) $ do
     divAttr
       (toAttr $
        fontSize 24 <> fontWeightBold <> S.paddingTRBL 10 10 5 10 <>
-       S.color S.base1 <>
-       S.backgroundColor S.base03) $ do text "PostgreSQL"
+       S.color "white" <>
+       S.backgroundColor "blue") $ do text "PostgreSQL"
     divAttr
       (toAttr $
        fontSize 18 <> fontWeightMedium <> S.paddingTRBL 0 10 10 10 <>
-       S.color S.base01 <>
-       S.backgroundColor S.base3) $ do
-      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "masters 1 +/-"
-      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "slaves 1 +/-"
+       S.color "black" <>
+       S.backgroundColor "white") $ do
+      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "masters 1 -/+"
+      divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "slaves 1 -/+"
 
 postgresCell :: (MonadWidget t m) => m ()
 postgresCell =
@@ -91,13 +92,13 @@ postgresCell =
     divAttr
       (toAttr $
        fontSize 24 <> fontWeightBold <> S.paddingTRBL 10 10 5 10 <>
-       S.color S.base1 <>
-       S.backgroundColor S.base03) $ do text "PostgreSQL"
+       S.color "white" <>
+       S.backgroundColor "blue") $ do text "PostgreSQL"
     divAttr
       (toAttr $
        fontSize 18 <> fontWeightMedium <> S.paddingTRBL 0 10 10 10 <>
-       S.color S.base01 <>
-       S.backgroundColor S.base2) $ do
+       S.color "black" <>
+       S.backgroundColor "white") $ do
       divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "masters 1"
       divAttr (toAttr $ S.paddingTRBL 10 0 0 0) $ do text "slaves 1"
 
@@ -107,10 +108,14 @@ currentCell =
     divAttr
       (toAttr $
        fontSize 20 <> fontWeightMedium <> S.paddingTRBL 10 10 5 20 <>
-       S.color S.base00 <>
-       S.backgroundColor S.base3) $ do text "Running"
-    divAttr (toAttr $ S.backgroundColor S.base3 <> S.paddingTRBL 0 10 10 10) $ do
+       S.color "white" <>
+       S.backgroundColor "grey") $ do text "Running"
+    divAttr (toAttr $ S.backgroundColor "grey" <> S.paddingTRBL 0 10 10 10) $ do
       postgresCell
+
+commitButton :: (MonadWidget t m) => m ()
+commitButton =
+  divAttr (toAttr $ fontSize 20 <> fontWeightMedium <> S.backgroundColor "green" <> S.color "white" <> S.marginTRBL 10 0 0 0 <> S.paddingVH 5 10) $ text "<- Commit"
 
 editingCell :: (MonadWidget t m) => m ()
 editingCell =
@@ -118,13 +123,15 @@ editingCell =
     divAttr
       (toAttr $
        fontSize 20 <> fontWeightMedium <> S.paddingTRBL 10 10 5 20 <>
-       S.color S.base00 <>
-       S.backgroundColor S.base2) $ do text "Running"
-    divAttr (toAttr $ S.backgroundColor S.base2 <> S.paddingTRBL 0 10 10 10) $ do
-      postgresCell'
+       S.color "white" <>
+       S.backgroundColor "grey") $ do text "Editing"
+    divAttr (toAttr $ S.backgroundColor "grey" <> S.paddingTRBL 0 10 10 10) $ do
+      editPostgresCell
+      commitButton
 
 historyGrid :: (MonadWidget t m) => m ()
 historyGrid =
   rowDiv $ do
     currentCell
+    divAttr (toAttr $ S.width 4 <> S.backgroundColor "white") $ return ()
     editingCell
