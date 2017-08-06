@@ -32,7 +32,7 @@ import           Gen.AST.Description
 import           Gen.AST.Types
 
 testRef :: Text
-testRef = "#/definitions/io.k8s.kubernetes.pkg.apis.autoscaling.v2alpha1.CrossVersionObjectReference"
+testRef = "io.k8s.kubernetes.pkg.apis.autoscaling.v2alpha1.CrossVersionObjectReference"
 
 parseTypeName_ :: [Text] -> Parser ExternalTypeName
 parseTypeName_ [] = error "Should have been called from parseKey using a nonempty list"
