@@ -13,9 +13,9 @@ import           Control.Lens        (makeLenses)
 
 import           Data.Aeson
 import qualified Data.Aeson.Types    as A
+import           Data.Maybe          (maybeToList)
+import           Data.Monoid
 import           Data.Text           (Text)
-import Data.Maybe (maybeToList)
-import Data.Monoid
 
 data TypeName where
   ArrayName :: TypeName -> TypeName
@@ -37,9 +37,13 @@ data Newtype = Newtype
   , _newtypeDescription :: Maybe Text
   } deriving (Show, Generic)
 
--- TODO: _fieldType for normal fields, _fieldValueType for additionalProperties
+data AddlFields = AddlFields
+  { _addlFieldsType        :: TypeName -- ^ The value type of each "additional field"
+  , _addlFieldsDescription :: Maybe Text
+  } deriving (Show, Generic)
+
 data Field = Field
-  { _fieldName        :: Either AdditionalProperties Text
+  { _fieldName        :: Text
   , _fieldType        :: TypeName
   , _fieldDescription :: Maybe Text
   } deriving (Show, Generic)
@@ -47,6 +51,7 @@ data Field = Field
 data Data = Data
   { _dataName        :: ExternalTypeName
   , _dataFields      :: [Field]
+  , _dataAddlFields  :: Maybe AddlFields
   , _dataDescription :: Maybe Text
   } deriving (Show, Generic)
 
@@ -54,6 +59,7 @@ type Type = Either Newtype Data
 
 makeLenses ''ExternalTypeName
 makeLenses ''Newtype
+makeLenses ''AddlFields
 makeLenses ''Field
 makeLenses ''Data
 
@@ -81,6 +87,9 @@ instance FromJSON AdditionalProperties
 instance ToJSON Newtype where
   toEncoding = genericToEncoding defaultOptions
 instance FromJSON Newtype
+instance ToJSON AddlFields where
+  toEncoding = genericToEncoding defaultOptions
+instance FromJSON AddlFields
 instance ToJSON Field where
   toEncoding = genericToEncoding defaultOptions
 instance FromJSON Field
@@ -111,7 +120,7 @@ fromExternalTypeName ExternalName{..} = SimpleName (Just _externalModule) _exter
 
 _typeModule :: Type -> Text
 _typeModule (Left Newtype{..}) = _externalModule _newtypeName
-_typeModule (Right Data{..}) = _externalModule _dataName
+_typeModule (Right Data{..})   = _externalModule _dataName
 
 _typeNameModules :: TypeName -> [Text]
 _typeNameModules (ArrayName t) = _typeNameModules t

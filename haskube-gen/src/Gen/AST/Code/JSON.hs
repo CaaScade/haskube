@@ -5,8 +5,9 @@ module Gen.AST.Code.JSON where
 
 import           Language.Haskell.Exts
 
-import           Data.Either              (either, rights, lefts)
 import           Data.Foldable            (foldl')
+import           Data.Maybe               (isNothing, maybeToList)
+import           Data.Monoid
 import           Data.Text                (Text, unpack)
 
 import qualified Gen.AST.BuiltIn          as G
@@ -41,6 +42,19 @@ aesonImports =
     , importSpecs = Nothing
     }
   ]
+
+hashMapImport :: ImportDecl Ann
+hashMapImport =
+  ImportDecl
+  { importAnn = mempty
+  , importModule = mkModuleName "Data.HashMap.Strict"
+  , importQualified = True
+  , importSrc = False
+  , importSafe = False
+  , importPkg = Nothing
+  , importAs = Just $ mkModuleName "Data.HashMap.Strict"
+  , importSpecs = Nothing
+  }
 
 xDot :: QOp Ann
 xDot = mkQVarOp_' "."
@@ -119,18 +133,18 @@ xObject = mkVarExp aesonPrefix "object"
 
 {- |
 essentially, field -> "obj .: fieldName"
-OR addlProps -> "parseAddlProps [normalFieldNames] obj"
 -}
-xParseFields :: [G.Field] -> [Exp Ann]
-xParseFields fields = f <$> fields
+xParseField :: G.Field -> Exp Ann
+xParseField G.Field {..} = mkInfixApp xObj xDotColon $ mkFieldString _fieldName
+
+{- |
+essentially, addlProps -> "parseAddlProps [normalFieldNames] obj"
+-}
+xParseAddlFields :: [Text] -> G.AddlFields -> Exp Ann
+xParseAddlFields normalFieldNames_ G.AddlFields {..} =
+  mkApp (mkApp xParseAddlProps normalFieldNames) xObj
   where
-    f G.Field {..} =
-      case _fieldName of
-        Left G.AdditionalProperties ->
-          mkApp (mkApp xParseAddlProps normalFieldNames) xObj
-        Right fieldName -> mkInfixApp xObj xDotColon $ mkFieldString fieldName
-    normalFieldNames =
-      List mempty $ mkFieldString <$> getNormalFieldNames fields
+    normalFieldNames = List mempty $ mkFieldString <$> normalFieldNames_
 
 {- |
 object ["name" .= _name, "age" .= _age]
@@ -143,12 +157,6 @@ xPropsToJSON props =
 xAddlPropsToJSON :: Exp Ann -> Exp Ann
 xAddlPropsToJSON valueExp =
   mkApp (mkApp xAddAddlProps xAddlProps) valueExp
-
-getNormalFieldNames :: [G.Field] -> [Text]
-getNormalFieldNames = rights . fmap G._fieldName
-
-hasAddlPropsField :: [G.Field] -> Bool
-hasAddlPropsField = not . null . lefts . fmap G._fieldName
 
 mkNewtypeParseJSONRHS :: Text -> Rhs Ann
 mkNewtypeParseJSONRHS conName = UnGuardedRhs mempty exp
@@ -168,14 +176,17 @@ mkNewtypeToJSON_ G.Newtype{..} = InsDecl mempty $ FunBind mempty [match]
   where match = Match mempty nToJSON [] (mkNewtypeToJSONRHS conName) Nothing
         conName = G._externalName _newtypeName
 
-mkDataParseJSONRHS :: Text -> [G.Field] -> Rhs Ann
-mkDataParseJSONRHS conName [] =
+mkDataParseJSONRHS :: Text -> [G.Field] -> Maybe G.AddlFields -> Rhs Ann
+mkDataParseJSONRHS conName [] Nothing =
   UnGuardedRhs mempty (mkApp (mkVarExp' "return") (mkVarExp' conName))
-mkDataParseJSONRHS conName fields = UnGuardedRhs mempty exp
+mkDataParseJSONRHS conName fields addlFields = UnGuardedRhs mempty exp
   where exp = foldl' f (xCon conName) $ zip ops propParsers
-        propParsers = xParseFields fields
+        fieldParsers = xParseField <$> fields
+        addlFieldsParser = maybeToList $ xParseAddlFields normalFieldNames <$> addlFields
+        propParsers = fieldParsers <> addlFieldsParser
         ops = xFancyDollar:repeat xFancyStar
         f expHead (op, parser) = mkInfixApp expHead op parser
+        normalFieldNames = G._fieldName <$> fields
 
 mkDataParseJSON :: G.Data -> InstDecl Ann
 mkDataParseJSON G.Data {..} = InsDecl mempty $ FunBind mempty [match0, match1]
@@ -185,7 +196,7 @@ mkDataParseJSON G.Data {..} = InsDecl mempty $ FunBind mempty [match0, match1]
         mempty
         nParseJSON
         [pObj]
-        (mkDataParseJSONRHS conName _dataFields)
+        (mkDataParseJSONRHS conName _dataFields _dataAddlFields)
         Nothing
     match1 =
       Match
@@ -196,11 +207,14 @@ mkDataParseJSON G.Data {..} = InsDecl mempty $ FunBind mempty [match0, match1]
         Nothing
     conName = G._externalName _dataName
 
-mkDataToJSONRHS :: [G.Field] -> Rhs Ann
-mkDataToJSONRHS fields = UnGuardedRhs mempty exp
-  where exp = if hasAddlPropsField fields then xAddlPropsToJSON propsExp
-              else propsExp
-        propsExp = xPropsToJSON $ getNormalFieldNames fields
+mkDataToJSONRHS :: [G.Field] -> Maybe G.AddlFields -> Rhs Ann
+mkDataToJSONRHS fields addlFields_ = UnGuardedRhs mempty exp
+  where
+    exp =
+      case addlFields_ of
+        Nothing         -> propsExp
+        Just addlFields -> xAddlPropsToJSON propsExp
+    propsExp = xPropsToJSON $ G._fieldName <$> fields
 
 mkDataToJSON_ :: G.Data -> InstDecl Ann
 mkDataToJSON_ G.Data {..} = InsDecl mempty $ FunBind mempty [match]
@@ -210,10 +224,10 @@ mkDataToJSON_ G.Data {..} = InsDecl mempty $ FunBind mempty [match]
         mempty
         nToJSON
         [pat]
-        (mkDataToJSONRHS _dataFields)
+        (mkDataToJSONRHS _dataFields _dataAddlFields)
         Nothing
     conName = G._externalName _dataName
-    pat = if null _dataFields then pCon conName else pRecordWildcard conName
+    pat = if null _dataFields && isNothing _dataAddlFields then pCon conName else pRecordWildcard conName
 
 qnFromJSON :: QName Ann
 qnFromJSON = mkQual aesonPrefix "FromJSON"

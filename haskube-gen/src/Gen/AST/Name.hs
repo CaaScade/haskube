@@ -21,7 +21,7 @@ import qualified Data.Swagger               as S
 import qualified Data.Swagger.Internal      as S
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
-import           Text.Parsec (runParser)
+import           Text.Parsec                (runParser)
 import           Text.Parsec.Char
 import           Text.Parsec.Combinator
 import           Text.Parsec.Text           (Parser)
@@ -159,19 +159,6 @@ paramSchemaTypeName typeName description paramSchema@S.ParamSchema {..} =
   where
     newtypify = mkNewtype' typeName description
 
-additionalPropertiesTypeName
-  :: (MonadAST m)
-  => Optional ExternalTypeName
-  -> S.Referenced S.Schema -- ^ dictionary value type (aka additionalProperties)
-  -> m (TypeName, Maybe Description)
-additionalPropertiesTypeName typeName ref =
-  pushASTError "additionalPropertiesTypeName" $ do
-    (valueTypeName, valueDescription) <-
-      referencedTypeName (extendTypeName "value" typeName) ref
-    let dictName = DictionaryName valueTypeName
-        dictDescription = labelDescription "(values:)" <$> valueDescription
-    mkNewtype' typeName dictDescription dictName
-
 -- | This declaration is a dictionary (JSON "object").
 objectTypeName
   :: (MonadAST m)
@@ -183,16 +170,14 @@ objectTypeName
   -> m (TypeName, Maybe Description) -- ^ passes the description through for convenience
 objectTypeName typeName_ description requiredProperties properties additionalProperties =
   pushASTError "objectTypeName" $ do
-    props <- mapM fieldify $ HI.toList properties
-    fields <-
-      case additionalProperties of
-        Nothing             -> return props
-        Just addlPropsValue -> (: props) <$> fieldify' addlPropsValue
+    fields <- mapM fieldify $ HI.toList properties
+    addlFields <- traverse toAddlFields additionalProperties
     let typeName = unOptional typeName_
     tellData
       Data
       { _dataName = typeName
       , _dataFields = fields
+      , _dataAddlFields = addlFields
       , _dataDescription = _descriptionText <$> description
       }
     return (fromExternalTypeName typeName, description)
@@ -207,19 +192,18 @@ objectTypeName typeName_ description requiredProperties properties additionalPro
                 else MaybeName fieldTypeName_
         return
           Field
-          { _fieldName = Right name
+          { _fieldName = name
           , _fieldType = fieldTypeName
           , _fieldDescription = _descriptionText <$> fieldDescription
           }
-    fieldify' ref =
-      pushASTError ("fieldify'", ref) $ do
+    toAddlFields ref =
+      pushASTError ("toAddlFields", ref) $ do
         (fieldTypeName, fieldDescription) <-
-          additionalPropertiesTypeName (extendTypeName "addlProps" typeName_) ref
+          referencedTypeName (extendTypeName "addlProps" typeName_) ref
         return
-          Field
-          { _fieldName = Left AdditionalProperties
-          , _fieldType = fieldTypeName
-          , _fieldDescription = _descriptionText <$> fieldDescription
+          AddlFields
+          { _addlFieldsType = fieldTypeName
+          , _addlFieldsDescription = _descriptionText <$> fieldDescription
           }
 
 schemaTypeName :: (MonadAST m) => Optional ExternalTypeName -> S.Schema -> m (TypeName, Maybe Description)

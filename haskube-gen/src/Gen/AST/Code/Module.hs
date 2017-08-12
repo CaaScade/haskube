@@ -9,23 +9,23 @@ module Gen.AST.Code.Module where
 import           Control.Monad.Except
 import           Control.Monad.Reader
 
-import           Data.Either           (either)
-import           Data.List             (nub)
+import           Data.Either              (either)
+import           Data.List                (nub)
 import           Data.Monoid
-import           Data.Text             (Text)
+import           Data.Text                (Text)
 
 import           Language.Haskell.Exts
 
-import qualified Data.HashMap.Strict   as H
+import qualified Data.HashMap.Strict      as H
 
-import qualified Gen.AST.BuiltIn       as G
+import qualified Gen.AST.BuiltIn          as G
 import           Gen.AST.Code.Combinators
 import           Gen.AST.Code.Data
 import           Gen.AST.Code.JSON
 import           Gen.AST.Code.Types
-import qualified Gen.AST.Types         as G
-import           Gen.AST.Unflatten     (importedModules)
-import qualified Gen.AST.Unflatten     as G
+import qualified Gen.AST.Types            as G
+import           Gen.AST.Unflatten        (importedModules)
+import qualified Gen.AST.Unflatten        as G
 
 mkImport :: (MonadModule m) => Text -> m (ImportDecl Ann)
 mkImport moduleName =
@@ -55,7 +55,7 @@ builtInImport =
   }
 
 defaultImports :: [ImportDecl Ann]
-defaultImports = builtInImport : aesonImports
+defaultImports =  builtInImport : hashMapImport : aesonImports
 
 mkImports :: (MonadModule m) => [Text] -> m [ImportDecl Ann]
 mkImports modules = do

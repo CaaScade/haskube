@@ -9,6 +9,7 @@ import           Control.Monad.Reader
 import           Language.Haskell.Exts
 
 import           Data.Maybe               (maybeToList)
+import           Data.Monoid
 import           Data.Text                (Text)
 
 import           Gen.AST.Code.Combinators
@@ -21,13 +22,22 @@ mkLanguagePragma = LanguagePragma mempty . pure . mkIdent
 mkFieldDecl :: Text -> Type Ann -> FieldDecl Ann
 mkFieldDecl name aType = FieldDecl mempty [mkIdent name] aType
 
+addlFieldsFieldName :: Text
+addlFieldsFieldName = "additionalProperties"
+
+-- | NOTE: Prefixes the field name with "_".
+mkAddlFieldsDecl :: (MonadModule m) => G.AddlFields -> m (FieldDecl Ann)
+mkAddlFieldsDecl G.AddlFields {..} = do
+  let description = maybeToList _addlFieldsDescription
+  fieldType <- mkType $ G.DictionaryName _addlFieldsType
+  return $ FieldDecl description [mkIdent $ toRecordFieldName addlFieldsFieldName] fieldType
+
 -- | NOTE: Prefixes the field name with "_".
 mkFieldDecl' :: (MonadModule m) => G.Field -> m (FieldDecl Ann)
 mkFieldDecl' G.Field {..} = do
-  let name = either (const "additionalProperties") id $ _fieldName
-      description = maybeToList _fieldDescription
+  let description = maybeToList _fieldDescription
   fieldType <- mkType _fieldType
-  return $ FieldDecl description [mkIdent $ toRecordFieldName name] fieldType
+  return $ FieldDecl description [mkIdent $ toRecordFieldName _fieldName] fieldType
 
 mkConDecl' :: Text -> Type Ann -> ConDecl Ann
 mkConDecl' name = ConDecl mempty (mkIdent name) . pure
@@ -47,10 +57,11 @@ mkNewtypeRHS name typeName = do
   aType <- mkType typeName
   return . mkQualConDecl $ mkRecDecl' name (toNewtypeFieldName name) aType
 
-mkDataRHS :: (MonadModule m) => Text -> [G.Field] -> m (QualConDecl Ann)
-mkDataRHS name fields_ = do
+mkDataRHS :: (MonadModule m) => Text -> [G.Field] -> Maybe G.AddlFields -> m (QualConDecl Ann)
+mkDataRHS name fields_ addlFields_ = do
   fields <- mapM mkFieldDecl' fields_
-  return . mkQualConDecl $ mkRecDecl name fields
+  addlFields <- traverse mkAddlFieldsDecl addlFields_
+  return . mkQualConDecl $ mkRecDecl name (fields <> maybeToList addlFields)
 
 mkDataLHS :: Text -> DeclHead Ann
 mkDataLHS = DHead mempty . mkIdent
@@ -70,5 +81,5 @@ mkData G.Data{..} = do
   let name = G._externalName _dataName
       lhs = mkDataLHS name
       comment = maybeToList _dataDescription
-  rhs <- mkDataRHS name _dataFields
+  rhs <- mkDataRHS name _dataFields _dataAddlFields
   return $ DataDecl comment (DataType mempty) Nothing lhs [rhs] Nothing
