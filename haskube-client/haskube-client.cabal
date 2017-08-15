@@ -27,6 +27,8 @@ executable haskube-client-exe
                      , lens-aeson
                      , base
                      , bytestring
+                     , connection
+                     , containers
                      , haskube-client
                      , haskube
                      , http-client
@@ -39,6 +41,7 @@ executable haskube-client-exe
                      , turtle
                      , unordered-containers
                      , vector
+                     , wreq
                      , yaml
   default-language:    Haskell2010
 
