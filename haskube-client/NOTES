@@ -1,0 +1,5 @@
+https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#without-kubectl-proxy-post-v13x
+
+kynan@ubluntu:~$ APISERVER=$(kubectl config view | grep server | cut -f 2- -d ":" | tr -d " ")
+kynan@ubluntu:~$ TOKEN=$(kubectl describe secret $(kubectl get secrets | grep default | cut -f1 -d ' ') | grep -E '^token' | cut -f2 -d':' | tr -d '\t')
+kynan@ubluntu:~$ curl $APISERVER/api --header "Authorization: Bearer $TOKEN" --insecure

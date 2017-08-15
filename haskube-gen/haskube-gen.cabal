@@ -2,7 +2,7 @@ name:                haskube-gen
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/ublubu/haskube/haskube-gen#readme
+homepage:            https://github.com/caascade/haskube/haskube-gen#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Kynan Rilee
