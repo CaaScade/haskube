@@ -67,6 +67,13 @@ mkTyApp :: [Type Ann] -> Type Ann
 mkTyApp types = foldl1 f types
   where f accum0 aType = TyApp mempty accum0 aType
 
+mkFieldType :: (MonadModule m) => G.TypeName -> Bool -> m (Type Ann)
+mkFieldType typeName True = mkType typeName
+mkFieldType typeName False = do
+  maybeType <- mkType' Nothing "Maybe"
+  valueType <- mkType typeName
+  return $ mkTyApp [maybeType, valueType]
+
 mkType' :: (MonadModule m) => Maybe Text -> Text -> m (Type Ann)
 mkType' moduleName typeName = TyCon mempty <$> mkQName moduleName typeName
 
@@ -82,10 +89,6 @@ mkType (G.DictionaryName valueName) = do
   stringType <- mkType' (Just "Data.Text") "Text"
   valueType <- mkType valueName
   return $ mkTyApp [dictType, stringType, valueType]
-mkType (G.MaybeName valueName) = do
-  maybeType <- mkType' Nothing "Maybe"
-  valueType <- mkType valueName
-  return $ mkTyApp [maybeType, valueType]
 mkType (G.SimpleName moduleName typeName) = mkType' moduleName typeName
 
 mkApp :: Exp Ann -> Exp Ann -> Exp Ann

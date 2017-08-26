@@ -16,11 +16,11 @@ import           Data.Int            (Int64)
 import           Data.Monoid
 import           Data.Text           (Text)
 
-newtype Base64String = Base64String { _unBase64String :: Text }
-newtype Password = Password { _unPassword :: Text }
-data IntOrString = IntVal Int64 | StringVal Text
-data Null = Null
-data TypeMeta = TypeMeta { _kind :: Maybe Text, _apiVersion :: Maybe Text }
+newtype Base64String = Base64String { _unBase64String :: Text } deriving (Show, Eq)
+newtype Password = Password { _unPassword :: Text } deriving (Show, Eq)
+data IntOrString = IntVal Int64 | StringVal Text deriving (Show, Eq)
+data Null = Null deriving (Show, Eq)
+data TypeMeta = TypeMeta { _kind :: Maybe Text, _apiVersion :: Maybe Text } deriving (Show, Eq)
 
 instance AE.FromJSON Base64String where
   parseJSON = fmap Base64String . AE.parseJSON
@@ -47,6 +47,12 @@ instance AE.ToJSON Null where
   toJSON Null = AE.Null
 instance AE.ToJSON TypeMeta where
   toJSON val = addTypeMeta val $ AE.Object H.empty
+
+justPair :: (AE.ToJSON a, AE.KeyValue kv) => Text -> a -> Maybe kv
+justPair key value = Just $ key AE..= value
+
+maybePair :: (AE.ToJSON a, AE.KeyValue kv) => Text -> Maybe a -> Maybe kv
+maybePair key = fmap $ \value -> key AE..= value
 
 parseAddlProps
   :: forall a.

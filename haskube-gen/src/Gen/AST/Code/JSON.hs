@@ -19,6 +19,9 @@ import qualified Gen.AST.Types            as G
 aesonPrefix :: Text
 aesonPrefix = "AE"
 
+maybePrefix :: Text
+maybePrefix = "Data.Maybe"
+
 aesonImports :: [ImportDecl Ann]
 aesonImports =
   [ ImportDecl
@@ -53,6 +56,19 @@ hashMapImport =
   , importSafe = False
   , importPkg = Nothing
   , importAs = Just $ mkModuleName "Data.HashMap.Strict"
+  , importSpecs = Nothing
+  }
+
+maybeImport :: ImportDecl Ann
+maybeImport =
+  ImportDecl
+  { importAnn = mempty
+  , importModule = mkModuleName "Data.Maybe"
+  , importQualified = True
+  , importSrc = False
+  , importSafe = False
+  , importPkg = Nothing
+  , importAs = Just $ mkModuleName maybePrefix
   , importSpecs = Nothing
   }
 
@@ -99,9 +115,21 @@ pInvalid = PVar mempty $ mkIdent "invalid"
 xDotColon :: QOp Ann
 xDotColon = mkQVarOp_ aesonPrefix ".:"
 
+-- | Data.Aeson's "parse optional object property" operator
+xDotColonQuest :: QOp Ann
+xDotColonQuest = mkQVarOp_ aesonPrefix ".:?"
+
+{-
 -- | Data.Aeson's "to JSON key-value pair" operator
 xDotEquals :: QOp Ann
 xDotEquals = mkQVarOp_ aesonPrefix ".="
+-}
+
+xMaybePair :: Exp Ann
+xMaybePair = mkVarExp G.builtInNewtypesModule' "maybePair"
+
+xJustPair :: Exp Ann
+xJustPair = mkVarExp G.builtInNewtypesModule' "justPair"
 
 -- | <$>
 xFancyDollar :: QOp Ann
@@ -131,11 +159,20 @@ xTypeMismatch conName =
 xObject :: Exp Ann
 xObject = mkVarExp aesonPrefix "object"
 
+xCatMaybes :: Exp Ann
+xCatMaybes = mkVarExp maybePrefix "catMaybes"
+
 {- |
 essentially, field -> "obj .: fieldName"
 -}
 xParseField :: G.Field -> Exp Ann
-xParseField G.Field {..} = mkInfixApp xObj xDotColon $ mkFieldString _fieldName
+xParseField G.Field {..} =
+  mkInfixApp
+    xObj
+    (if _fieldRequired
+       then xDotColon
+       else xDotColonQuest) $
+  mkFieldString _fieldName
 
 {- |
 essentially, addlProps -> "parseAddlProps [normalFieldNames] obj"
@@ -149,10 +186,18 @@ xParseAddlFields normalFieldNames_ G.AddlFields {..} =
 {- |
 object ["name" .= _name, "age" .= _age]
 -}
-xPropsToJSON :: [Text] -> Exp Ann
+xPropsToJSON :: [(Text, Bool)] -> Exp Ann
 xPropsToJSON props =
-  mkApp xObject (List mempty $ f <$> props)
-  where f prop = mkInfixApp (mkString prop) xDotEquals (mkFieldName prop)
+  mkApp (mkInfixApp xObject xDot xCatMaybes) (List mempty $ f <$> props)
+  where
+    f (prop, required) =
+      mkApp
+        (mkApp
+           (if required
+              then xJustPair
+              else xMaybePair) $
+         mkString prop)
+        (mkFieldName prop)
 
 xAddlPropsToJSON :: Exp Ann -> Exp Ann
 xAddlPropsToJSON valueExp =
@@ -214,7 +259,8 @@ mkDataToJSONRHS fields addlFields_ = UnGuardedRhs mempty exp
       case addlFields_ of
         Nothing         -> propsExp
         Just addlFields -> xAddlPropsToJSON propsExp
-    propsExp = xPropsToJSON $ G._fieldName <$> fields
+    propsExp = xPropsToJSON $ f <$> fields
+    f G.Field {..} = (_fieldName, _fieldRequired)
 
 mkDataToJSON_ :: G.Data -> InstDecl Ann
 mkDataToJSON_ G.Data {..} = InsDecl mempty $ FunBind mempty [match]

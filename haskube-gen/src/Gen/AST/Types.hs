@@ -21,7 +21,6 @@ data TypeName where
   ArrayName :: TypeName -> TypeName
   TupleName :: [TypeName] -> TypeName
   DictionaryName :: TypeName -> TypeName
-  MaybeName :: TypeName -> TypeName
   SimpleName :: Maybe Text -> Text -> TypeName
   deriving (Show)
 
@@ -46,6 +45,7 @@ data Field = Field
   { _fieldName        :: Text
   , _fieldType        :: TypeName
   , _fieldDescription :: Maybe Text
+  , _fieldRequired    :: Bool
   } deriving (Show, Generic)
 
 data Data = Data
@@ -68,14 +68,12 @@ instance ToJSON TypeName where
   toJSON (TupleName typeNames) = object ["_tuple" .= (), "_types" .= typeNames]
   toJSON (DictionaryName typeName) =
     object ["_dictionary" .= (), "_type" .= typeName]
-  toJSON (MaybeName typeName) = object ["_maybe" .= (), "_type" .= typeName]
   toJSON (SimpleName moduleName typeName) =
     object ["_simple" .= (), "_module" .= moduleName, "_type" .= typeName]
 
 instance FromJSON TypeName where
   parseJSON (Object v) =
     parseArrayName v <|> parseTupleName v <|> parseDictionaryName v <|>
-    parseMaybeName v <|>
     parseSimpleName v
 
 instance ToJSON ExternalTypeName where
@@ -107,9 +105,6 @@ parseDictionaryName :: Object -> A.Parser TypeName
 parseDictionaryName v =
   (v .: "_dictionary" :: A.Parser ()) >> DictionaryName <$> v .: "_type"
 
-parseMaybeName :: Object -> A.Parser TypeName
-parseMaybeName v = (v .: "_maybe" :: A.Parser ()) >> MaybeName <$> v .: "_type"
-
 parseSimpleName :: Object -> A.Parser TypeName
 parseSimpleName v =
   (v .: "_simple" :: A.Parser ()) >>
@@ -126,7 +121,6 @@ _typeNameModules :: TypeName -> [Text]
 _typeNameModules (ArrayName t) = _typeNameModules t
 _typeNameModules (TupleName ts) = foldl1 (<>) $ _typeNameModules <$> ts
 _typeNameModules (DictionaryName t) = "Data.HashMap.Strict":_typeNameModules t
-_typeNameModules (MaybeName t) = _typeNameModules t
 _typeNameModules (SimpleName moduleName _) = maybeToList moduleName
 
 data Optional a = Optional a | Required a

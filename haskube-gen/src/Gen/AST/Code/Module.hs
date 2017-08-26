@@ -55,7 +55,7 @@ builtInImport =
   }
 
 defaultImports :: [ImportDecl Ann]
-defaultImports =  builtInImport : hashMapImport : aesonImports
+defaultImports =  maybeImport : builtInImport : hashMapImport : aesonImports
 
 mkImports :: (MonadModule m) => [Text] -> m [ImportDecl Ann]
 mkImports modules = do

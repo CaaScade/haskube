@@ -36,7 +36,7 @@ mkAddlFieldsDecl G.AddlFields {..} = do
 mkFieldDecl' :: (MonadModule m) => G.Field -> m (FieldDecl Ann)
 mkFieldDecl' G.Field {..} = do
   let description = maybeToList _fieldDescription
-  fieldType <- mkType _fieldType
+  fieldType <- mkFieldType _fieldType _fieldRequired
   return $ FieldDecl description [mkIdent $ toRecordFieldName _fieldName] fieldType
 
 mkConDecl' :: Text -> Type Ann -> ConDecl Ann
@@ -73,7 +73,7 @@ mkNewtype G.Newtype{..} = do
       lhs = mkDataLHS name
       comment = maybeToList _newtypeDescription
   rhs <- mkNewtypeRHS name _newtypeValue
-  return $ DataDecl comment (NewType mempty) Nothing lhs [rhs] Nothing
+  return $ DataDecl comment (NewType mempty) Nothing lhs [rhs] $ Just derivings
 
 -- | NOTE: Assumes this declaration belongs in the current module.
 mkData :: (MonadModule m) => G.Data -> m (Decl Ann)
@@ -82,4 +82,10 @@ mkData G.Data{..} = do
       lhs = mkDataLHS name
       comment = maybeToList _dataDescription
   rhs <- mkDataRHS name _dataFields _dataAddlFields
-  return $ DataDecl comment (DataType mempty) Nothing lhs [rhs] Nothing
+  return $ DataDecl comment (DataType mempty) Nothing lhs [rhs] $ Just derivings
+
+derivings :: Deriving Ann
+derivings = Deriving mempty [mkDeriving "Show", mkDeriving "Eq"]
+
+mkDeriving :: Text -> InstRule Ann
+mkDeriving = IRule mempty Nothing Nothing . IHCon mempty . mkUnqual

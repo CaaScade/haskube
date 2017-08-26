@@ -186,15 +186,14 @@ objectTypeName typeName_ description requiredProperties properties additionalPro
       pushASTError ("fieldify", (name, ref)) $ do
         (fieldTypeName_, fieldDescription) <-
           referencedTypeName (extendTypeName name typeName_) ref
-        let fieldTypeName =
-              if name `elem` requiredProperties
-                then fieldTypeName_
-                else MaybeName fieldTypeName_
+        let fieldTypeName = fieldTypeName_
+            fieldRequired = name `elem` requiredProperties
         return
           Field
           { _fieldName = name
           , _fieldType = fieldTypeName
           , _fieldDescription = _descriptionText <$> fieldDescription
+          , _fieldRequired = fieldRequired
           }
     toAddlFields ref =
       pushASTError ("toAddlFields", ref) $ do
