@@ -18,7 +18,6 @@ import qualified Data.Aeson.Lens              as AE
 import           Data.Aeson.Types             (parseEither)
 import qualified Data.ByteString.Lazy         as BS
 import           Data.Foldable                (foldl')
-import qualified Data.HashMap.Strict.InsOrd   as HI
 import           Data.Maybe                   (fromJust, fromMaybe, isJust)
 import           Data.Monoid
 import qualified Data.Swagger                 as S

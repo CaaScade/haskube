@@ -20,6 +20,7 @@ executable haskube-gen
   build-depends:       aeson
                      , base >= 4.7 && < 5
                      , bytestring
+                     , containers
                      , directory
                      , ede
                      , haskell-src-exts
