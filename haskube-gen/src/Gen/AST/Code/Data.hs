@@ -16,9 +16,6 @@ import           Gen.AST.Code.Combinators
 import           Gen.AST.Code.Types
 import qualified Gen.AST.Types            as G
 
-mkLanguagePragma :: Text -> ModulePragma Ann
-mkLanguagePragma = LanguagePragma mempty . pure . mkIdent
-
 mkFieldDecl :: Text -> Type Ann -> FieldDecl Ann
 mkFieldDecl name aType = FieldDecl mempty [mkIdent name] aType
 
