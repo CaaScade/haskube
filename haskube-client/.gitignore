@@ -20,4 +20,3 @@ cabal.project.local
 .HTF/
 *.swp
 TAGS
-src/
