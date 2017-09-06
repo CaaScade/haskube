@@ -6,19 +6,10 @@ module Gen.IO where
 import           Control.Applicative
 import           Control.Monad
 
-import           Control.Lens
-import           Control.Lens.At
-import           Control.Lens.Traversal
-
 import           Language.Haskell.Exts        (Module)
 import           Language.Haskell.Exts.Pretty (prettyPrint)
 
-import qualified Data.Aeson                   as AE
-import qualified Data.Aeson.Lens              as AE
-import           Data.Aeson.Types             (parseEither)
-import qualified Data.ByteString.Lazy         as BS
 import           Data.Foldable                (foldl')
-import           Data.Maybe                   (fromJust, fromMaybe, isJust)
 import           Data.Monoid
 import qualified Data.Swagger                 as S
 import           Data.Text                    (Text)
@@ -31,24 +22,8 @@ import           System.Directory
 import           Gen.AST
 import           Gen.AST.BuiltIn              (builtInNewtypesModule')
 import           Gen.AST.Class
+import           Gen.AST.IO.Swagger
 import           Gen.AST.Types
-
-parseSwagger :: AE.Value -> Either String S.Swagger
-parseSwagger =
-  parseEither AE.parseJSON . setType
-  where definitionType = AE.key "definitions" . AE.members . AE._Object . at "type"
-        setType :: AE.Value -> AE.Value
-        setType = definitionType %~ Just . fromMaybe "object"
-
-readSwagger :: FilePath -> IO S.Swagger
-readSwagger file = do
-  swaggerText <- BS.readFile file
-  let result = do
-        swaggerVal <- AE.eitherDecode swaggerText
-        parseSwagger swaggerVal
-  case result of
-    Left err      -> error err
-    Right swagger -> return swagger
 
 readTypes :: FilePath -> IO (Either ASTError [Type])
 readTypes file = do

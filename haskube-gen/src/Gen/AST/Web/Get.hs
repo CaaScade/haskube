@@ -31,18 +31,17 @@ data QueryParamType
 
 data PathParamType = PathParamType deriving (Show)
 
--- TODO: Other kinds of params? (Header, FormData)
+-- TODO: Other kinds of params? (Header, FormData, Body)
 -- | All path params are strings! (TODO: verify?)
 type PathParam = Param PathParamType
 type QueryParam = Param QueryParamType
-type BodyParam = Param G.TypeName
 
 -- TODO(low priority): Safe to ignore consumes/produces?
 -- TODO: Special case for "watch" param. (Streaming JSON)
 data Get = Get
-  { _getQueryParams  :: Params QueryParam
+  { _getPathTemplate :: Text
+  , _getQueryParams  :: Params QueryParam
   , _getPathParams   :: Params PathParam
-  , _getBodyParam    :: BodyParam
   , _getDescription  :: Maybe Text
   , _getResponseType :: G.TypeName -- ^ 200 should come with data (TODO: verify)
   } deriving (Show)

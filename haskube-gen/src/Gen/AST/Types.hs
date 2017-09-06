@@ -24,6 +24,11 @@ data TypeName where
   SimpleName :: Maybe Text -> Text -> TypeName
   deriving (Show)
 
+{- |
+So named because it's an external requirement.
+  Used for any types we need to define.
+  (If they weren't externally required, we'd use built-in types.)
+-}
 data ExternalTypeName = ExternalName
   { _externalModule :: Text
   , _externalName   :: Text } deriving (Show, Generic)
