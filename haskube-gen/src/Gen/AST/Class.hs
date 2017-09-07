@@ -1,11 +1,12 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 module Gen.AST.Class where
 
-import           Control.Monad.Except
 import           Control.Lens
+import           Control.Monad.Except
 import           Control.Monad.Writer
 
 import           Data.Monoid
@@ -14,7 +15,7 @@ import qualified Data.Text            as T
 import           Text.PrettyPrint     (Doc)
 import           Text.Show.Pretty     (ppDoc)
 
-import Gen.AST.Types
+import           Gen.AST.Types
 
 data ASTError = ASTError
   { _asteStack :: [Doc]

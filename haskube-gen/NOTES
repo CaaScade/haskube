@@ -442,6 +442,7 @@
      }
     ]
    },
+
 [ "/apis/apps/v1beta1/watch/namespaces/{namespace}/deployments/{name}"
 , "/apis/extensions/v1beta1/watch/namespaces/{namespace}/replicasets"
 , "/apis/autoscaling/v2alpha1/watch/namespaces/{namespace}/horizontalpodautoscalers"
