@@ -31,6 +31,7 @@ executable haskube-gen
                      , parsec
                      , pretty
                      , pretty-show
+                     , safe
                      , swagger2
                      , text
                      , transformers

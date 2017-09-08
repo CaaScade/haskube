@@ -22,8 +22,15 @@ import           Text.PrettyPrint           (Doc)
 import           Text.Show.Pretty           (pPrint, ppDoc, ppShow)
 
 import           Gen.AST.IO.Swagger
+import           qualified Util.Trie as UT
 
-data PathSegment = ConstSegment Text | ParamSegment Text deriving (Show)
+data PathSegment = ConstSegment Text | ParamSegment Text deriving (Show, Eq)
+
+instance Ord PathSegment where
+  compare (ConstSegment x) (ConstSegment y) = compare x y
+  compare (ParamSegment _) (ConstSegment _) = LT
+  compare (ConstSegment _) (ParamSegment _) = GT
+  compare (ParamSegment x) (ParamSegment y) = compare x y
 
 -- | Allows empty segments (trailing slash, back-to-back slashes)
 parsePlainSegment :: Parser Text
@@ -50,6 +57,7 @@ test = do
   swag <- readSwagger "swagger.json"
   let paths_ = fmap pack . HI.keys $ S._swaggerPaths swag
   let paths = mapM (doParse parsePath :: Text -> Either Doc [PathSegment]) paths_
-  pPrint paths
-
+  let pathTrie = UT.fromList <$> paths
+  let pathSplits = UT.split 10 <$> pathTrie
+  pPrint $ fmap fst <$> pathSplits
 
