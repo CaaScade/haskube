@@ -7,6 +7,7 @@
 module Gen.AST.Web.Path where
 
 import           Control.Applicative
+import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Except
 
@@ -22,7 +23,7 @@ import           Text.PrettyPrint           (Doc)
 import           Text.Show.Pretty           (pPrint, ppDoc, ppShow)
 
 import           Gen.AST.IO.Swagger
-import           qualified Util.Trie as UT
+import qualified Util.Trie                  as UT
 
 data PathSegment = ConstSegment Text | ParamSegment Text deriving (Show, Eq)
 
@@ -59,5 +60,5 @@ test = do
   let paths = mapM (doParse parsePath :: Text -> Either Doc [PathSegment]) paths_
   let pathTrie = UT.fromList <$> paths
   let pathSplits = UT.split 10 <$> pathTrie
-  pPrint $ fmap fst <$> pathSplits
+  pPrint $ fmap (over _2 $ view UT.trieSize) <$> pathSplits
 
