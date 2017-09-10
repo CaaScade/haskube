@@ -5,12 +5,16 @@
 module Util.Trie where
 
 import           Control.Lens
-import           Safe          (minimumDef)
+import           Safe               (minimumDef)
 
-import           Data.Foldable (foldl', foldr')
-import           Data.Map      (Map)
-import qualified Data.Map      as M
-import           Data.Maybe    (fromMaybe)
+import           Data.Foldable      (foldl', foldr')
+import           Data.Function      (on)
+import           Data.List          (sortBy)
+import           Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as N
+import           Data.Map           (Map)
+import qualified Data.Map           as M
+import           Data.Maybe         (fromJust, fromMaybe)
 
 import           Debug.Trace
 
@@ -36,93 +40,64 @@ insert (x:xs) = over trieSize (+1) . over (trieBranches . at x) f
 fromList :: (Ord a) => [[a]] -> Trie a
 fromList = foldl' (flip insert) empty
 
--- | Subtrees include the leaf at root.
-minSubtrieSize :: Trie a -> Int
-minSubtrieSize trie =
-  minimumDef (_trieLeaf trie) . fmap _trieSize . M.elems . _trieBranches $ trie
+atPrefix
+  :: (Ord token, Applicative f)
+  => [token] -> (Trie token -> f (Trie token)) -> Trie token -> f (Trie token)
+atPrefix []     = id
+atPrefix (x:xs) = trieBranches . at x . _Just . atPrefix xs
 
--- | Including the "leaf" branch.
-splitCount :: Trie a -> Int
-splitCount Trie {..} =
-  if _trieLeaf > 0
-    then branchCount + 1
-    else branchCount
-  where
-    branchCount = M.size _trieBranches
-
-data SplitScore
-  = ScoreMin
-  | Score Int
-  | ScoreMax
-  deriving (Show, Eq)
-
-instance Ord SplitScore where
-  compare ScoreMin ScoreMin   = EQ
-  compare ScoreMin _          = LT
-  compare ScoreMax ScoreMax   = EQ
-  compare ScoreMax _          = GT
-  compare (Score x) (Score y) = compare x y
-  compare (Score _) ScoreMin  = GT
-  compare (Score _) ScoreMax  = LT
-
-mkSplitScore :: Int -> SplitScore
-mkSplitScore 0 = ScoreMin
-mkSplitScore x = Score x
-
--- | Split quality
-splitScore :: Trie a -> SplitScore
-splitScore trie@Trie {..} =
-  if _trieLeaf > 0
-    then if M.null _trieBranches
-         then ScoreMin -- Dead end.
-         else mkSplitScore $ minSubtrieSize trie -- Split the "largest" branchings.
-    else if M.size _trieBranches == 1
-         then ScoreMax -- Always chase the long threads.
-         else mkSplitScore $ minSubtrieSize trie -- Split the "largest" branchings.
+branchSize :: (Ord a) => a -> Trie a -> Int
+branchSize token = maybe 0 (_trieSize) . preview (atPrefix [token])
 
 deleteBranches :: Trie a -> Maybe (Trie a)
 deleteBranches trie@Trie {..} = case _trieLeaf of
   0 -> Nothing
   _ -> Just (trie & trieSize .~ _trieLeaf & trieBranches .~ M.empty)
 
--- | Uses reversed prefixes.
-bestSplit
-  :: (Ord a)
-  => [([a], Trie a)] -- ^ Tries and their (reversed) prefixes
-  -> (SplitScore, [([a], Trie a)]) -- ^ A Trie has been replaced by its subtries & The split score of the subtrie that was split.
-bestSplit [] = (ScoreMin, [])
-bestSplit tries@(x:xs) =
-  if score > ScoreMin
-    then (score, splitOnce toSplit ++ unsplit)
-    else (score, tries)
+deleteLeaf :: Trie a -> Maybe (Trie a)
+deleteLeaf trie@Trie {..} =
+  if M.null _trieBranches
+    then Nothing
+    else Just (trie & trieSize %~ subtract _trieLeaf & trieLeaf .~ 0)
+
+data Split token = SplitLeaf | Split token deriving (Show, Eq)
+
+splitSizes :: (Ord a) => Trie a -> NonEmpty (Split a, Int)
+splitSizes trie =
+  M.foldlWithKey f (pure (SplitLeaf, _trieLeaf trie)) $ _trieBranches trie
+  where f (a0:|as) token subtrie = a0:|(Split token, _trieSize subtrie):as
+
+validSplits :: (Ord a) => Int -> Trie a -> [Split a]
+validSplits minSize trie =
+  snd $ foldl' f (0, []) increasingSplits
+  where increasingSplits = N.sortWith snd $ splitSizes trie
+        f (unsplitSize, splits0) (split1, size1) =
+          if unsplitSize < minSize then (unsplitSize + size1, splits0)
+          else (unsplitSize, split1:splits0)
+
+-- | Assumes we already know the split is valid.
+doSplit :: (Ord a) => Split a  -> Trie a -> (Trie a, Trie a)
+doSplit SplitLeaf     = fromJust . splitLeaf
+doSplit (Split token) = fromJust . splitBranchAt token
+
+splitLeaf :: (Ord a) => Trie a -> Maybe (Trie a, Trie a)
+splitLeaf trie@Trie {..} = do
+  branches <- deleteLeaf trie
+  leaf <- deleteBranches trie
+  return (leaf, branches)
+
+splitBranchAt :: (Ord a) => a -> Trie a -> Maybe (Trie a, Trie a)
+splitBranchAt token trie@Trie {..} = do
+  branch <- _trieBranches ^. at token
+  let theRest =
+        trie & trieBranches %~ M.delete token & trieSize %~
+        subtract (branch ^. trieSize)
+  return (branch, theRest)
+
+splitOne :: (Ord a) => Int -> Trie a -> NonEmpty (Trie a)
+splitOne minSize trie_ = foldl' f (pure trie_) splits
   where
-    (unsplit, (score, toSplit)) = foldr' f ([], (splitScore $ snd x, x)) xs
-    f trie1 (unsplit, (score0, trie0)) =
-      let score1 = splitScore $ snd trie1
-      in if score1 > score0
-           then (trie0 : unsplit, (score1, trie1))
-           else (trie1 : unsplit, (score0, trie0))
-
--- | Uses reversed prefixes.
-splitOnce :: ([a], Trie a) -> [([a], Trie a)]
-splitOnce (prefix, trie_@Trie {..}) = case deleteBranches trie_ of
-  Nothing       -> splitBranches
-  Just leafTrie -> (prefix, leafTrie):splitBranches
-  where f (token, trie) = (token:prefix, trie)
-        splitBranches = f <$> M.toList _trieBranches
-
--- TODO: Splitting methods need to return Maybe so we know if they did any work.
--- | Prefixes are in the correct order.
-split :: (Ord a, Show a) => Int -> Trie a -> [([a], Trie a)]
-split targetSplitCount trie = over _1 reverse <$> loop (ScoreMax, [([], trie)])
-  where loop (ScoreMax, tries0) = loop . bestSplit $ tries0
-        loop (ScoreMin, tries0) = tries0
-        loop (_, tries0)
-          | length tries0 > targetSplitCount = tries0
-          | otherwise = loop . bestSplit $ tries0
-
-atPrefix
-  :: (Ord token, Applicative f)
-  => [token] -> (Trie token -> f (Trie token)) -> Trie token -> f (Trie token)
-atPrefix []     = id
-atPrefix (x:xs) = trieBranches . at x . _Just . atPrefix xs
+    splits = validSplits minSize trie_
+    f (trie0 :| accum0) split1 =
+      let (a1, trie1) = doSplit split1 trie0
+      in (trie1 :| a1 : accum0)
