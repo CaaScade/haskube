@@ -1,7 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Util.Trie where
 
@@ -15,7 +16,7 @@ import           Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as N
 import           Data.Map           (Map)
 import qualified Data.Map           as M
-import           Data.Maybe         (fromJust, fromMaybe)
+import           Data.Maybe         (fromJust, fromMaybe, maybeToList)
 
 import           Debug.Trace
 
@@ -112,14 +113,26 @@ splitBranchAt token trie@Trie {..} = do
         subtract (branch ^. trieSize)
   return (branch, theRest)
 
- --g $ foldl' f (trie_, []) splits
-splitOne :: (Ord a) => Int -> Trie a -> NonEmpty (Maybe a, Trie a)
+splitOne
+  :: (Ord a, Show a)
+  => Int
+  -> Trie a
+  -> Maybe (NonEmpty (Maybe a, Trie a)) -- ^ Nothing if no split was performed. Maybe a is the prefix character used to split.
 splitOne minSize trie_ =
-  case validSplits minSize trie_
-  of Drill split -> pure . fst $ doSplit split trie_
-     Splits splits -> g $ foldl' f (trie_, []) splits
-       where
-         f (trie0, accum0) split1 =
-           let (a1, trie1) = doSplit split1 trie0
-           in (trie1, a1 : accum0)
-         g (t, prefixedTs) = (Nothing, t) :| prefixedTs
+  case validSplits minSize trie_ of
+    Drill split -> Just . pure . fst $ doSplit split trie_
+    Splits [] -> Nothing
+    Splits splits -> Just . g $ foldl' f (trie_, []) splits
+      where f (trie0, accum0) split1 =
+              let (a1, trie1) = doSplit split1 trie0
+              in (trie1, a1 : accum0)
+            g (t, prefixedTs) = (Nothing, t) :| prefixedTs
+
+split :: (Ord a, Show a) => Int -> Trie a -> NonEmpty ([a], Trie a)
+split minSize trie_ =
+  case splitOne minSize trie_ of
+    Nothing            -> pure ([], trie_)
+    Just prefixedTries -> loop =<< prefixedTries
+  where
+    loop (Nothing, trie)     = pure ([], trie)
+    loop (Just prefix, trie) = over _1 (prefix :) <$> split minSize trie
