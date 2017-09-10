@@ -53,12 +53,16 @@ doParse parser text =
     Left err  -> throwError . ppDoc $ (text, err)
     Right val -> return val
 
-test :: IO ()
+test :: IO [([PathSegment], UT.Trie PathSegment)]
 test = do
   swag <- readSwagger "swagger.json"
-  let paths_ = fmap pack . HI.keys $ S._swaggerPaths swag
-  let paths = mapM (doParse parsePath :: Text -> Either Doc [PathSegment]) paths_
-  let pathTrie = UT.fromList <$> paths
-  let pathSplits = UT.split 10 <$> pathTrie
-  pPrint $ fmap (over _2 $ view UT.trieSize) <$> pathSplits
+  let paths = fmap pack . HI.keys $ S._swaggerPaths swag
+  let pathSplits = testSplit paths
+  pPrint $ (over (traverse . _2) $ view UT.trieSize) <$> pathSplits
+  return $ either (const []) id pathSplits
 
+testSplit :: [Text] -> Either Doc [([PathSegment], UT.Trie PathSegment)]
+testSplit paths_ = do
+  paths <- mapM (doParse parsePath) paths_
+  let pathTrie = UT.fromList paths
+  return $ UT.split 10 pathTrie

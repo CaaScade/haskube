@@ -120,3 +120,9 @@ split targetSplitCount trie = over _1 reverse <$> loop (ScoreMax, [([], trie)])
         loop (_, tries0)
           | length tries0 > targetSplitCount = tries0
           | otherwise = loop . bestSplit $ tries0
+
+atPrefix
+  :: (Ord token, Applicative f)
+  => [token] -> (Trie token -> f (Trie token)) -> Trie token -> f (Trie token)
+atPrefix []     = id
+atPrefix (x:xs) = trieBranches . at x . _Just . atPrefix xs
