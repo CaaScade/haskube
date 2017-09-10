@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TupleSections     #-}
 
 module Util.Trie where
 
@@ -9,7 +10,7 @@ import           Safe               (minimumDef)
 
 import           Data.Foldable      (foldl', foldr')
 import           Data.Function      (on)
-import           Data.List          (sortBy)
+import           Data.List          (sortOn)
 import           Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as N
 import           Data.Map           (Map)
@@ -60,25 +61,42 @@ deleteLeaf trie@Trie {..} =
     then Nothing
     else Just (trie & trieSize %~ subtract _trieLeaf & trieLeaf .~ 0)
 
-data Split token = SplitLeaf | Split token deriving (Show, Eq)
+data Split token
+  = SplitLeaf -- ^ split leaf from branches
+  | Split token -- ^ split a branch from the rest
+  deriving (Show, Eq)
 
-splitSizes :: (Ord a) => Trie a -> NonEmpty (Split a, Int)
-splitSizes trie =
-  M.foldlWithKey f (pure (SplitLeaf, _trieLeaf trie)) $ _trieBranches trie
-  where f (a0:|as) token subtrie = a0:|(Split token, _trieSize subtrie):as
+data TrieSplits split
+  = Splits [split] -- ^ the trie has multiple sections
+  | Drill split -- ^ the trie has only one section
+  deriving (Show, Eq)
 
-validSplits :: (Ord a) => Int -> Trie a -> [Split a]
+splitSizes :: (Ord a) => Trie a -> TrieSplits (Split a, Int)
+splitSizes trie = case nonzeroSplits of
+  [(SplitLeaf, _)] -> Splits []
+  [x]              -> Drill x
+  xs               -> Splits xs
+  where
+    nonzeroSplits = N.filter (\x -> snd x > 0) allSplits
+    allSplits =
+      M.foldlWithKey f (pure (SplitLeaf, _trieLeaf trie)) $ _trieBranches trie
+    f (a0 :| as) token subtrie = a0 :| (Split token, _trieSize subtrie) : as
+
+validSplits :: (Ord a) => Int -> Trie a -> TrieSplits (Split a)
 validSplits minSize trie =
-  snd $ foldl' f (0, []) increasingSplits
-  where increasingSplits = N.sortWith snd $ splitSizes trie
-        f (unsplitSize, splits0) (split1, size1) =
-          if unsplitSize < minSize then (unsplitSize + size1, splits0)
-          else (unsplitSize, split1:splits0)
+  case splitSizes trie of
+    Drill (split, _) -> Drill split
+    Splits splits -> Splits . snd $ foldl' f (0, []) increasingSplits
+      where increasingSplits = sortOn snd splits
+            f (unsplitSize, splits0) (split1, size1) =
+              if unsplitSize < minSize
+                then (unsplitSize + size1, splits0)
+                else (unsplitSize, split1 : splits0)
 
 -- | Assumes we already know the split is valid.
-doSplit :: (Ord a) => Split a  -> Trie a -> (Trie a, Trie a)
-doSplit SplitLeaf     = fromJust . splitLeaf
-doSplit (Split token) = fromJust . splitBranchAt token
+doSplit :: (Ord a) => Split a  -> Trie a -> ((Maybe a, Trie a), Trie a)
+doSplit SplitLeaf = over _1 (Nothing, ) . fromJust . splitLeaf
+doSplit (Split token) = over _1 (Just token, ) . fromJust . splitBranchAt token
 
 splitLeaf :: (Ord a) => Trie a -> Maybe (Trie a, Trie a)
 splitLeaf trie@Trie {..} = do
@@ -94,10 +112,14 @@ splitBranchAt token trie@Trie {..} = do
         subtract (branch ^. trieSize)
   return (branch, theRest)
 
-splitOne :: (Ord a) => Int -> Trie a -> NonEmpty (Trie a)
-splitOne minSize trie_ = foldl' f (pure trie_) splits
-  where
-    splits = validSplits minSize trie_
-    f (trie0 :| accum0) split1 =
-      let (a1, trie1) = doSplit split1 trie0
-      in (trie1 :| a1 : accum0)
+ --g $ foldl' f (trie_, []) splits
+splitOne :: (Ord a) => Int -> Trie a -> NonEmpty (Maybe a, Trie a)
+splitOne minSize trie_ =
+  case validSplits minSize trie_
+  of Drill split -> pure . fst $ doSplit split trie_
+     Splits splits -> g $ foldl' f (trie_, []) splits
+       where
+         f (trie0, accum0) split1 =
+           let (a1, trie1) = doSplit split1 trie0
+           in (trie1, a1 : accum0)
+         g (t, prefixedTs) = (Nothing, t) :| prefixedTs
