@@ -134,5 +134,5 @@ split minSize trie_ =
     Nothing            -> pure ([], trie_)
     Just prefixedTries -> loop =<< prefixedTries
   where
-    loop (Nothing, trie)     = pure ([], trie)
+    loop (Nothing, trie)     = split minSize trie
     loop (Just prefix, trie) = over _1 (prefix :) <$> split minSize trie
