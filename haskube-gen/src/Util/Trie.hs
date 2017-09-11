@@ -7,16 +7,17 @@
 module Util.Trie where
 
 import           Control.Lens
-import           Safe               (minimumDef)
+import           Control.Monad.Writer
+import           Safe                 (minimumDef)
 
-import           Data.Foldable      (foldl', foldr')
-import           Data.Function      (on)
-import           Data.List          (sortOn)
-import           Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as N
-import           Data.Map           (Map)
-import qualified Data.Map           as M
-import           Data.Maybe         (fromJust, fromMaybe, maybeToList)
+import           Data.Foldable        (foldl', foldr')
+import           Data.Function        (on)
+import           Data.List            (sortOn)
+import           Data.List.NonEmpty   (NonEmpty (..))
+import qualified Data.List.NonEmpty   as N
+import           Data.Map             (Map)
+import qualified Data.Map             as M
+import           Data.Maybe           (fromJust, fromMaybe, maybeToList)
 
 import           Debug.Trace
 
@@ -24,7 +25,7 @@ data Trie token = Trie
   { _trieSize     :: Int -- ^ Total leaves in this trie.
   , _trieBranches :: Map token (Trie token)
   , _trieLeaf     :: Int -- ^ How many entries end at the root of this trie?
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 makeLenses ''Trie
 
@@ -62,43 +63,6 @@ deleteLeaf trie@Trie {..} =
     then Nothing
     else Just (trie & trieSize %~ subtract _trieLeaf & trieLeaf .~ 0)
 
-data Split token
-  = SplitLeaf -- ^ split leaf from branches
-  | Split token -- ^ split a branch from the rest
-  deriving (Show, Eq)
-
-data TrieSplits split
-  = Splits [split] -- ^ the trie has multiple sections
-  | Drill split -- ^ the trie has only one section
-  deriving (Show, Eq)
-
-splitSizes :: (Ord a) => Trie a -> TrieSplits (Split a, Int)
-splitSizes trie = case nonzeroSplits of
-  [(SplitLeaf, _)] -> Splits []
-  [x]              -> Drill x
-  xs               -> Splits xs
-  where
-    nonzeroSplits = N.filter (\x -> snd x > 0) allSplits
-    allSplits =
-      M.foldlWithKey f (pure (SplitLeaf, _trieLeaf trie)) $ _trieBranches trie
-    f (a0 :| as) token subtrie = a0 :| (Split token, _trieSize subtrie) : as
-
-validSplits :: (Ord a) => Int -> Trie a -> TrieSplits (Split a)
-validSplits minSize trie =
-  case splitSizes trie of
-    Drill (split, _) -> Drill split
-    Splits splits -> Splits . snd $ foldl' f (0, []) increasingSplits
-      where increasingSplits = sortOn snd splits
-            f (unsplitSize, splits0) (split1, size1) =
-              if unsplitSize < minSize
-                then (unsplitSize + size1, splits0)
-                else (unsplitSize, split1 : splits0)
-
--- | Assumes we already know the split is valid.
-doSplit :: (Ord a) => Split a  -> Trie a -> ((Maybe a, Trie a), Trie a)
-doSplit SplitLeaf = over _1 (Nothing, ) . fromJust . splitLeaf
-doSplit (Split token) = over _1 (Just token, ) . fromJust . splitBranchAt token
-
 splitLeaf :: (Ord a) => Trie a -> Maybe (Trie a, Trie a)
 splitLeaf trie@Trie {..} = do
   branches <- deleteLeaf trie
@@ -113,26 +77,43 @@ splitBranchAt token trie@Trie {..} = do
         subtract (branch ^. trieSize)
   return (branch, theRest)
 
-splitOne
-  :: (Ord a, Show a)
-  => Int
-  -> Trie a
-  -> Maybe (NonEmpty (Maybe a, Trie a)) -- ^ Nothing if no split was performed. Maybe a is the prefix character used to split.
-splitOne minSize trie_ =
-  case validSplits minSize trie_ of
-    Drill split -> Just . pure . fst $ doSplit split trie_
-    Splits [] -> Nothing
-    Splits splits -> Just . g $ foldl' f (trie_, []) splits
-      where f (trie0, accum0) split1 =
-              let (a1, trie1) = doSplit split1 trie0
-              in (trie1, a1 : accum0)
-            g (t, prefixedTs) = (Nothing, t) :| prefixedTs
+{- |
+Walk through the tree (trie) depth first and build up a list of adequate
+  subtries along the way.
+-}
 
-split :: (Ord a, Show a) => Int -> Trie a -> NonEmpty ([a], Trie a)
-split minSize trie_ =
-  case splitOne minSize trie_ of
-    Nothing            -> pure ([], trie_)
-    Just prefixedTries -> loop =<< prefixedTries
+-- | Prefixes are in reverse order.
+collapse
+  :: (Ord a)
+  => ([b] -> ([a], Trie a) -> b)
+  -> ([a], Trie a)
+  -> b
+collapse f x@(rprefix, trie@Trie {..}) =
+  f branchResults x
   where
-    loop (Nothing, trie)     = split minSize trie
-    loop (Just prefix, trie) = over _1 (prefix :) <$> split minSize trie
+    branches = over _1 (: rprefix) <$> M.toList _trieBranches
+    branchResults = collapse f <$> branches
+
+data Doot a = Doot { _dootClaimed   :: [([a], Int)]
+                   , _dootUnclaimed :: Int
+                   } deriving (Show, Eq)
+
+foop :: (Ord a) => Int -> [Doot a] -> ([a], Trie a) -> Doot a
+foop minSize doots (rprefix, trie)
+  | totalUnclaimed < minSize =
+    Doot {_dootClaimed = allClaimed, _dootUnclaimed = totalUnclaimed}
+  | otherwise =
+    Doot
+    {_dootClaimed = (rprefix, totalUnclaimed) : allClaimed, _dootUnclaimed = 0}
+  where
+    totalUnclaimed = _trieLeaf trie + (sum $ _dootUnclaimed <$> doots)
+    allClaimed = concat $ _dootClaimed <$> doots
+
+poot :: [a] -> Doot a -> [([a], Int)]
+poot rprefix Doot {..}
+  | _dootUnclaimed > 0 = (rprefix, _dootUnclaimed) : _dootClaimed
+  | otherwise = _dootClaimed
+
+split :: (Ord a) => Int -> Trie a -> [([a], Int)]
+split minSize trie = poot [] $ collapse (foop minSize) ([], trie)
+
