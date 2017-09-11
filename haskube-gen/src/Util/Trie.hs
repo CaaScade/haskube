@@ -95,24 +95,34 @@ collapse f x@(rprefix, trie@Trie {..}) =
     branchResults = collapse f <$> branches
 
 data Doot a = Doot { _dootClaimed   :: [([a], Int)]
-                   , _dootUnclaimed :: Int
+                   , _dootUnclaimed :: [([a], Int)] -- ^ Just in case we want to do something clever in the future.
                    } deriving (Show, Eq)
 
+dootUnclaimedTotal :: Doot a -> Int
+dootUnclaimedTotal Doot {..} = sum . fmap snd $ _dootUnclaimed
+
+-- TODO: use the rprefix in _dootUnclaimed to keep tiny branches from bubbling all the way to the root.
 foop :: (Ord a) => Int -> [Doot a] -> ([a], Trie a) -> Doot a
 foop minSize doots (rprefix, trie)
   | totalUnclaimed < minSize =
-    Doot {_dootClaimed = allClaimed, _dootUnclaimed = totalUnclaimed}
+    Doot
+    { _dootClaimed = allClaimed
+    , _dootUnclaimed = (rprefix, thisUnclaimedCount) : childUnclaimed
+    }
   | otherwise =
     Doot
-    {_dootClaimed = (rprefix, totalUnclaimed) : allClaimed, _dootUnclaimed = 0}
+    {_dootClaimed = (rprefix, totalUnclaimed) : allClaimed, _dootUnclaimed = []}
   where
-    totalUnclaimed = _trieLeaf trie + (sum $ _dootUnclaimed <$> doots)
+    thisUnclaimedCount = _trieLeaf trie
+    childUnclaimed = _dootUnclaimed =<< doots
+    totalUnclaimed = thisUnclaimedCount + sum (snd <$> childUnclaimed)
     allClaimed = concat $ _dootClaimed <$> doots
 
 poot :: [a] -> Doot a -> [([a], Int)]
-poot rprefix Doot {..}
-  | _dootUnclaimed > 0 = (rprefix, _dootUnclaimed) : _dootClaimed
+poot rprefix doot@Doot {..}
+  | unclaimedTotal > 0 = (rprefix, unclaimedTotal) : _dootClaimed
   | otherwise = _dootClaimed
+  where unclaimedTotal = dootUnclaimedTotal doot
 
 split :: (Ord a) => Int -> Trie a -> [([a], Int)]
 split minSize trie = poot [] $ collapse (foop minSize) ([], trie)
