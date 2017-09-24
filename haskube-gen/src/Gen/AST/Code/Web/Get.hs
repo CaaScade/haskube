@@ -1,23 +1,32 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 module Gen.AST.Code.Web.Get where
 
 import           Language.Haskell.Exts
 
+import           Control.Monad.Except
+import           Control.Monad.Reader
+
 import qualified Data.HashMap.Strict.InsOrd as HI
 import           Data.Monoid
 import           Data.Text                  (Text, toTitle)
+import           Text.Parsec                (ParseError, runParser)
+import           Text.Show.Pretty           (pPrint)
 
 import           Gen.AST.BuiltIn
 import           Gen.AST.Code.Combinators
 import           Gen.AST.Code.Types
+import           Gen.AST.Code.Web.Class
 import           Gen.AST.Types              (Data (..), ExternalTypeName (..),
                                              Field (..), TypeName (..))
 import qualified Gen.AST.Types              as G
 import           Gen.AST.Web.Get
+import qualified Gen.AST.Web.Path           as P
 
 wreqPrefix :: Text
 wreqPrefix = "Wreq"
@@ -35,25 +44,36 @@ wreqImport =
   , importSpecs = Nothing
   }
 
-getRequestType :: Get -> Data
-getRequestType Get {..} =
-  Data
-  { _dataName = requestName _getPathTemplate
-  , _dataFields = queryFields _getQueryParams <> pathFields _getPathParams
-  , _dataAddlFields = Nothing
-  , _dataDescription = _getDescription
-  }
+getRequestType
+  :: (MonadWebCode m)
+  => Get -> m Data
+getRequestType Get {..} = do
+  name <- requestName _getPathTemplate
+  return
+    Data
+    { _dataName = name
+    , _dataFields = queryFields _getQueryParams <> pathFields _getPathParams
+    , _dataAddlFields = Nothing
+    , _dataDescription = _getDescription
+    }
 
-requestName :: Text -- ^ path template
-            -> ExternalTypeName
-requestName = _
+requestName :: (MonadWebCode m)
+            => Text -- ^ path template
+            -> m ExternalTypeName
+requestName pathText = do
+  pathTypes <- _wcePathTypes <$> ask
+  path <- case f pathText of
+    Left err  -> throwWebCodeError pathText err
+    Right val -> return val
+  return $ pathTypes path
+  where f = runParser P.parsePath () ""
 
 queryFields :: Params QueryParam -> [Field]
 queryFields = paramFields "query" queryFieldType
 
 queryFieldType :: QueryParamType -> TypeName
-queryFieldType QueryParamBool = boolName
-queryFieldType QueryParamInt = int64Name
+queryFieldType QueryParamBool   = boolName
+queryFieldType QueryParamInt    = int64Name
 queryFieldType QueryParamString = textName
 
 pathFields :: Params PathParam -> [Field]
@@ -74,3 +94,23 @@ paramFields namePrefix convertType = fmap (uncurry paramField) . HI.toList
       }
     paramFieldName :: Text -> Text
     paramFieldName = mappend namePrefix . toTitle
+
+testGet :: Get
+testGet =
+  Get
+  { _getPathTemplate = "/api/doot"
+  , _getQueryParams = HI.empty
+  , _getPathParams = HI.empty
+  , _getDescription = Just "I am doot."
+  , _getResponseType = G.SimpleName (Just "Api.Base") "Doot"
+  }
+
+testEnv :: WebCodeEnv
+testEnv = WebCodeEnv {_wcePathTypes = f}
+  where
+    f _ = G.ExternalName "Client.Api" "GetDoot"
+
+test :: IO ()
+test = do
+  result <- runExceptT $ flip runReaderT testEnv $ getRequestType testGet
+  pPrint result

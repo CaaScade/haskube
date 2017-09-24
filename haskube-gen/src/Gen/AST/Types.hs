@@ -22,7 +22,7 @@ data TypeName where
   TupleName :: [TypeName] -> TypeName
   DictionaryName :: TypeName -> TypeName
   SimpleName :: Maybe Text -> Text -> TypeName
-  deriving (Show)
+  deriving (Show, Eq)
 
 {- |
 So named because it's an external requirement.
@@ -31,34 +31,34 @@ So named because it's an external requirement.
 -}
 data ExternalTypeName = ExternalName
   { _externalModule :: Text
-  , _externalName   :: Text } deriving (Show, Generic)
+  , _externalName   :: Text } deriving (Show, Generic, Eq)
 
-data AdditionalProperties = AdditionalProperties deriving (Show, Generic)
+data AdditionalProperties = AdditionalProperties deriving (Show, Generic, Eq)
 
 data Newtype = Newtype
   { _newtypeName        :: ExternalTypeName
   , _newtypeValue       :: TypeName
   , _newtypeDescription :: Maybe Text
-  } deriving (Show, Generic)
+  } deriving (Show, Generic, Eq)
 
 data AddlFields = AddlFields
   { _addlFieldsType        :: TypeName -- ^ The value type of each "additional field"
   , _addlFieldsDescription :: Maybe Text
-  } deriving (Show, Generic)
+  } deriving (Show, Generic, Eq)
 
 data Field = Field
   { _fieldName        :: Text
   , _fieldType        :: TypeName
   , _fieldDescription :: Maybe Text
   , _fieldRequired    :: Bool
-  } deriving (Show, Generic)
+  } deriving (Show, Generic, Eq)
 
 data Data = Data
   { _dataName        :: ExternalTypeName
   , _dataFields      :: [Field]
   , _dataAddlFields  :: Maybe AddlFields
   , _dataDescription :: Maybe Text
-  } deriving (Show, Generic)
+  } deriving (Show, Generic, Eq)
 
 type Type = Either Newtype Data
 
