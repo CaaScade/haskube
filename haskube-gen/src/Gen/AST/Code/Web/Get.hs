@@ -69,7 +69,7 @@ requestName pathText = do
   where f = runParser P.parsePath () ""
 
 queryFields :: Params QueryParam -> [Field]
-queryFields = paramFields "query" queryFieldType
+queryFields = paramFields queryParamField
 
 queryFieldType :: QueryParamType -> TypeName
 queryFieldType QueryParamBool   = boolName
@@ -77,33 +77,48 @@ queryFieldType QueryParamInt    = int64Name
 queryFieldType QueryParamString = textName
 
 pathFields :: Params PathParam -> [Field]
-pathFields = paramFields "path" $ const textName
+pathFields = paramFields pathParamField
 
-paramFields :: forall t. Text -- ^ field name prefix
-            -> (t -> TypeName)
-            -> Params (Param t) -> [Field]
-paramFields namePrefix convertType = fmap (uncurry paramField) . HI.toList
-  where
-    paramField :: Text -> Param t -> Field
-    paramField name Param {..} =
-      Field
-      { _fieldName = paramFieldName name
-      , _fieldType = convertType _paramType
-      , _fieldDescription = _paramDescription
-      , _fieldRequired = _paramRequired
-      }
-    paramFieldName :: Text -> Text
-    paramFieldName = mappend namePrefix . toTitle
+queryParamFieldPrefix = "query"
+pathParamFieldPrefix = "path"
+
+mkParamFieldName :: Text -- ^ Prefix for param type
+                 -> Text -- ^ Param name
+                 -> Text -- ^ Field name
+mkParamFieldName prefix = mappend prefix . toTitle
+
+queryParamField :: Text -> QueryParam -> Field
+queryParamField paramName QueryParam {..} =
+  Field
+  { _fieldName = mkParamFieldName queryParamFieldPrefix paramName
+  , _fieldType = queryFieldType _paramType
+  , _fieldDescription = _paramDescription
+  , _fieldRequired = _paramRequired
+  }
+
+pathParamField :: Text -> PathParam -> Field
+pathParamField paramName PathParam {..} =
+  Field
+  { _fieldName = mkParamFieldName pathParamFieldPrefix paramName
+  , _fieldType = textName
+  , _fieldDescription = _paramDescription
+  , _fieldRequired = True
+  }
+
+paramFields :: (Text -> param -> Field) -> Params param -> [Field]
+paramFields paramToField = fmap (uncurry paramToField) . HI.toList
 
 testGet :: Get
 testGet =
   Get
-  { _getPathTemplate = "/api/doot"
-  , _getQueryParams = HI.empty
-  , _getPathParams = HI.empty
+  { _getPathTemplate = "/api/doot/{id}"
+  , _getQueryParams = HI.fromList qps
+  , _getPathParams = HI.fromList pps
   , _getDescription = Just "I am doot."
   , _getResponseType = G.SimpleName (Just "Api.Base") "Doot"
   }
+  where qps = [("bloo", QueryParam QueryParamBool Nothing False)]
+        pps = [("id", PathParam Nothing)]
 
 testEnv :: WebCodeEnv
 testEnv = WebCodeEnv {_wcePathTypes = f}

@@ -17,24 +17,24 @@ import qualified Gen.AST.Types              as G
 -- | Parameters by name.
 type Params v = HI.InsOrdHashMap Text v
 
-data Param t = Param
-  { _paramType        :: t
-  , _paramDescription :: Maybe Text
-  , _paramRequired    :: Bool
-  } deriving (Show)
-
 data QueryParamType
   = QueryParamBool
   | QueryParamInt
   | QueryParamString
   deriving (Show)
 
-data PathParamType = PathParamType deriving (Show)
+data QueryParam = QueryParam
+  { _paramType        :: QueryParamType
+  , _paramDescription :: Maybe Text
+  , _paramRequired    :: Bool
+  } deriving (Show)
+
+data PathParam = PathParam
+  { _paramDescription :: Maybe Text
+  } deriving (Show)
 
 -- TODO: Other kinds of params? (Header, FormData, Body)
 -- | All path params are strings! (TODO: verify?)
-type PathParam = Param PathParamType
-type QueryParam = Param QueryParamType
 
 -- TODO(low priority): Safe to ignore consumes/produces?
 -- TODO: Special case for "watch" param. (Streaming JSON)
