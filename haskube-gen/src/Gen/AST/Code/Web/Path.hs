@@ -6,7 +6,6 @@
 module Gen.AST.Code.Web.Path where
 
 import           Language.Haskell.Exts
-import           Language.Haskell.Exts.Pretty (prettyPrint)
 
 import           Control.Monad
 
@@ -59,7 +58,3 @@ mkRequestPath GetInfo {..} = InsDecl mempty $ FunBind mempty [match]
         else pRecordWildcard conName
     rhs = mkRequestPathRHS _giPath
     match = Match mempty nRequestPath [pat] rhs Nothing
-
-testy :: IO ()
-testy = do
-  putStrLn $ prettyPrint $ mkRequestPath testInfo

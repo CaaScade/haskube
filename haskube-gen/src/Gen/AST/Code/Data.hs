@@ -17,7 +17,7 @@ import           Gen.AST.Code.Types
 import qualified Gen.AST.Types            as G
 
 mkFieldDecl :: Text -> Type Ann -> FieldDecl Ann
-mkFieldDecl name aType = FieldDecl mempty [mkIdent name] aType
+mkFieldDecl name = FieldDecl mempty [mkIdent name]
 
 addlFieldsFieldName :: Text
 addlFieldsFieldName = "additionalProperties"

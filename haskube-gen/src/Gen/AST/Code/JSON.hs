@@ -194,9 +194,9 @@ xPropsToJSON props =
          mkString prop)
         (mkFieldName prop)
 
-xAddlPropsToJSON :: Exp Ann -> Exp Ann
-xAddlPropsToJSON valueExp =
-  mkApp (mkApp xAddAddlProps xAddlProps) valueExp
+xAddlPropsToJSON :: Exp Ann -- ^ value expression
+                 -> Exp Ann
+xAddlPropsToJSON = mkApp (mkApp xAddAddlProps xAddlProps)
 
 mkNewtypeParseJSONRHS :: Text -> Rhs Ann
 mkNewtypeParseJSONRHS conName = UnGuardedRhs mempty exp
@@ -305,7 +305,7 @@ mkDataToJSON aData =
   where aType = tData aData
 
 mkJSONs :: [G.Type] -> [Decl Ann]
-mkJSONs types = foldl' f [] types
+mkJSONs = foldl' f []
   where
     f insts (Left aNewtype) =
       mkNewtypeFromJSON aNewtype : mkNewtypeToJSON aNewtype : insts

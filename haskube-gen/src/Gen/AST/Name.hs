@@ -41,7 +41,7 @@ parseTypeName_ segments = do
     if T.null moduleName_
       then fail $ "no module name parsed from segments: " <> show segments
       else return moduleName_
-  return $
+  return
     ExternalName {_externalModule = moduleName, _externalName = last segments}
   where
     moduleName_ = T.intercalate "." (T.toTitle <$> init segments)

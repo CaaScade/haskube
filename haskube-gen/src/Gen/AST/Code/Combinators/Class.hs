@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 
 module Gen.AST.Code.Combinators.Class where
 
@@ -13,8 +12,7 @@ import           Gen.AST.Code.Types
 import qualified Gen.AST.Types         as G
 
 mkInstHead :: QName Ann -> Type Ann -> InstHead Ann
-mkInstHead className aType =
-  IHApp mempty (IHCon mempty className) aType
+mkInstHead className = IHApp mempty (IHCon mempty className)
 
 mkInstRule :: QName Ann -> Type Ann -> InstRule Ann
 mkInstRule className aType =

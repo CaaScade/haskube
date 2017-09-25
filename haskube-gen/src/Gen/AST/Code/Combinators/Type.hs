@@ -14,8 +14,7 @@ import           Gen.AST.Code.Types
 import qualified Gen.AST.Types                   as G
 
 mkTyApp :: [Type Ann] -> Type Ann
-mkTyApp types = foldl1 f types
-  where f accum0 aType = TyApp mempty accum0 aType
+mkTyApp = foldl1 (TyApp mempty)
 
 mkFieldType :: (MonadModule m) => G.TypeName -> Bool -> m (Type Ann)
 mkFieldType typeName True = mkType typeName

@@ -1,6 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RecordWildCards       #-}
 
 module Gen.AST.Web.Get where
 
@@ -29,7 +28,7 @@ data QueryParam = QueryParam
   , _paramRequired    :: Bool
   } deriving (Show, Eq)
 
-data PathParam = PathParam
+newtype PathParam = PathParam
   { _paramDescription :: Maybe Text
   } deriving (Show, Eq)
 

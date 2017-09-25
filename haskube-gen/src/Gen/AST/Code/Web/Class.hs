@@ -1,7 +1,6 @@
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TemplateHaskell       #-}
 
 module Gen.AST.Code.Web.Class where
 
@@ -19,7 +18,7 @@ import           Text.Show.Pretty     (ppDoc)
 import           qualified Gen.AST.Types as G
 import           qualified Gen.AST.Web.Path as G
 
-data WebCodeEnv = WebCodeEnv
+newtype WebCodeEnv = WebCodeEnv
   { _wcePathTypes :: [G.PathSegment] -> G.ExternalTypeName }
 
 data WebCodeError = WebCodeError

@@ -1,7 +1,6 @@
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TemplateHaskell       #-}
 
 module Gen.AST.Web.Class where
 
@@ -20,7 +19,7 @@ import           Gen.AST.Class
 import           Gen.AST.Types
 import           Gen.AST.Web.Path
 
-data ASTWebEnv = ASTWebEnv
+newtype ASTWebEnv = ASTWebEnv
   { _astwPathTypes :: [PathSegment] -> ExternalTypeName }
 
 type MonadASTWebReader m = MonadReader ASTWebEnv m

@@ -23,6 +23,7 @@ import           Gen.AST
 import           Gen.AST.BuiltIn        (builtInNewtypesModule')
 import           Gen.AST.Class
 import           Gen.AST.Code.Module
+import           Gen.AST.IO.Swagger
 import           Gen.IO
 
 main :: IO ()

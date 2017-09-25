@@ -50,7 +50,7 @@ atPrefix []     = id
 atPrefix (x:xs) = trieBranches . at x . _Just . atPrefix xs
 
 branchSize :: (Ord a) => a -> Trie a -> Int
-branchSize token = maybe 0 (_trieSize) . preview (atPrefix [token])
+branchSize token = maybe 0 _trieSize . preview (atPrefix [token])
 
 deleteBranches :: Trie a -> Maybe (Trie a)
 deleteBranches trie@Trie {..} = case _trieLeaf of

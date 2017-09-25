@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 
@@ -15,8 +14,8 @@ import           Control.Monad.Writer
 import           Control.Lens
 
 import           Data.Foldable              (foldl')
-import qualified Data.HashMap.Strict.InsOrd as HI
 import qualified Data.HashMap.Strict        as H
+import qualified Data.HashMap.Strict.InsOrd as HI
 import           Data.Monoid
 import qualified Data.Swagger               as S
 import           Data.Text                  (Text)
