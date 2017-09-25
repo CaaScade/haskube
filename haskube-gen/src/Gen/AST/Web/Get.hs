@@ -21,17 +21,17 @@ data QueryParamType
   = QueryParamBool
   | QueryParamInt
   | QueryParamString
-  deriving (Show)
+  deriving (Show, Eq)
 
 data QueryParam = QueryParam
   { _paramType        :: QueryParamType
   , _paramDescription :: Maybe Text
   , _paramRequired    :: Bool
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 data PathParam = PathParam
   { _paramDescription :: Maybe Text
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 -- TODO: Other kinds of params? (Header, FormData, Body)
 -- | All path params are strings! (TODO: verify?)
@@ -44,4 +44,4 @@ data Get = Get
   , _getPathParams   :: Params PathParam
   , _getDescription  :: Maybe Text
   , _getResponseType :: G.TypeName -- ^ 200 should come with data (TODO: verify)
-  } deriving (Show)
+  } deriving (Show, Eq)

@@ -12,6 +12,7 @@ import           Data.Text                (Text, unpack)
 
 import qualified Gen.AST.BuiltIn          as G
 import           Gen.AST.Code.Combinators
+import           Gen.AST.Code.Common
 import           Gen.AST.Code.Data
 import           Gen.AST.Code.Types
 import qualified Gen.AST.Types            as G
@@ -71,12 +72,6 @@ maybeImport =
   , importAs = Just $ mkModuleName maybePrefix
   , importSpecs = Nothing
   }
-
-xDot :: QOp Ann
-xDot = mkQVarOp_' "."
-
-xFmap :: Exp Ann
-xFmap = mkVarExp' "fmap"
 
 nParseJSON :: Name Ann
 nParseJSON = mkIdent "parseJSON"

@@ -26,7 +26,14 @@ import           Gen.AST.Types              (Data (..), ExternalTypeName (..),
                                              Field (..), TypeName (..))
 import qualified Gen.AST.Types              as G
 import           Gen.AST.Web.Get
+import           Gen.AST.Web.Path           (PathSegment (..))
 import qualified Gen.AST.Web.Path           as P
+
+data GetInfo = GetInfo
+  { _giGet  :: Get
+  , _giPath :: [P.PathSegment]
+  , _giData :: Data
+  } deriving (Show, Eq)
 
 wreqPrefix :: Text
 wreqPrefix = "Wreq"
@@ -124,6 +131,35 @@ testEnv :: WebCodeEnv
 testEnv = WebCodeEnv {_wcePathTypes = f}
   where
     f _ = G.ExternalName "Client.Api" "GetDoot"
+
+testData :: Data
+testData =
+  Data
+  { _dataName =
+      ExternalName {_externalModule = "Client.Api", _externalName = "GetDoot"}
+  , _dataFields =
+      [ Field
+        { _fieldName = "queryBloo"
+        , _fieldType = SimpleName Nothing "Bool"
+        , _fieldDescription = Nothing
+        , _fieldRequired = False
+        }
+      , Field
+        { _fieldName = "pathId"
+        , _fieldType = SimpleName (Just "Data.Text") "Text"
+        , _fieldDescription = Nothing
+        , _fieldRequired = True
+        }
+      ]
+  , _dataAddlFields = Nothing
+  , _dataDescription = Just "I am doot."
+  }
+
+testPath :: [PathSegment]
+testPath = [ConstSegment "api", ConstSegment "doot", ParamSegment "id"]
+
+testInfo :: GetInfo
+testInfo = GetInfo testGet testPath testData
 
 test :: IO ()
 test = do

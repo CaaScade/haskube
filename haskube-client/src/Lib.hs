@@ -6,9 +6,11 @@
 
 module Lib where
 
+import           Control.Lens         ((&), (.~))
 import           Control.Monad.Except
 
 import           Data.Aeson           (FromJSON)
+import           Data.Foldable        (foldl')
 import           Data.Monoid
 import           Data.Text            (Text, pack, unpack)
 
@@ -31,12 +33,17 @@ instance ToQueryParam Int where
   toQueryParam = pure . pack . show
 
 class Request a where
-  setQueryParams :: a -> Options -> Options
+  requestQueryParams :: a -> [(Text, [Text])]
   -- | Returns the path with params filled in.
   requestPath :: a -> Text
 
 class SimpleResponse request where
   type SimpleResponseType request :: *
+
+setQueryParams :: Request a => a -> Options -> Options
+setQueryParams request options_ = foldl' f options_ $ requestQueryParams request
+  where
+    f options0 (name, values) = options0 & (param name) .~ values
 
 getRequestWith
   :: (Request req, SimpleResponse req, FromJSON (SimpleResponseType req))
