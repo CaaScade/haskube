@@ -8,6 +8,7 @@ import           Language.Haskell.Exts
 
 import           Data.Monoid
 import           Data.Text                       (Text)
+import qualified Data.Text as T
 
 import           Gen.AST.Code.Combinators.Common
 import           Gen.AST.Code.Types
@@ -50,8 +51,12 @@ tData G.Data{..} = TyCon mempty . mkUnqual $ G._externalName _dataName
 toNewtypeFieldName :: Text -> Text
 toNewtypeFieldName conName = "_un" <> conName
 
+-- | Remove gross characters like $ from the field name.
+sanitizeFieldName :: Text -> Text
+sanitizeFieldName = T.filter (/= '$')
+
 toRecordFieldName :: Text -> Text
-toRecordFieldName fieldName = "_" <> fieldName
+toRecordFieldName fieldName = "_" <> sanitizeFieldName fieldName
 
 -- | Variable for a field (like it's been record-wildcarded)
 mkFieldName :: Text -- ^ field name without the leading underscore

@@ -14,7 +14,36 @@ cabal-version:       >=1.10
 extra-source-files:  README.md
 
 library
-  exposed-modules:     Apimachinery.Pkg.Api.Resource
+  exposed-modules:     Api.Admissionregistration.V1alpha1
+                     , Api.Admissionregistration.V1beta1
+                     , Api.Apps.V1
+                     , Api.Apps.V1beta1
+                     , Api.Apps.V1beta2
+                     , Api.Authentication.V1
+                     , Api.Authentication.V1beta1
+                     , Api.Authorization.V1
+                     , Api.Authorization.V1beta1
+                     , Api.Autoscaling.V1
+                     , Api.Autoscaling.V2beta1
+                     , Api.Batch.V1
+                     , Api.Batch.V1beta1
+                     , Api.Batch.V2alpha1
+                     , Api.Certificates.V1beta1
+                     , Api.Core.V1
+                     , Api.Events.V1beta1
+                     , Api.Extensions.V1beta1
+                     , Api.Networking.V1
+                     , Api.Policy.V1beta1
+                     , Api.Rbac.V1
+                     , Api.Rbac.V1alpha1
+                     , Api.Rbac.V1beta1
+                     , Api.Scheduling.V1alpha1
+                     , Api.Settings.V1alpha1
+                     , Api.Storage.V1
+                     , Api.Storage.V1alpha1
+                     , Api.Storage.V1beta1
+                     , Apiextensions_apiserver.Pkg.Apis.Apiextensions.V1beta1
+                     , Apimachinery.Pkg.Api.Resource
                      , Apimachinery.Pkg.Apis.Meta.V1
                      , Apimachinery.Pkg.Runtime
                      , Apimachinery.Pkg.Util.Intstr
@@ -28,7 +57,6 @@ library
                      , Kubernetes.Pkg.Apis.Authorization.V1
                      , Kubernetes.Pkg.Apis.Authorization.V1beta1
                      , Kubernetes.Pkg.Apis.Autoscaling.V1
-                     , Kubernetes.Pkg.Apis.Autoscaling.V2alpha1
                      , Kubernetes.Pkg.Apis.Batch.V1
                      , Kubernetes.Pkg.Apis.Batch.V2alpha1
                      , Kubernetes.Pkg.Apis.Certificates.V1beta1
