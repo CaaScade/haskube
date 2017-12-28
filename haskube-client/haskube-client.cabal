@@ -17,12 +17,12 @@ library
   hs-source-dirs:      src
   exposed-modules:     Lib
   build-depends:       aeson
+                     , aeson-pretty
                      , lens-aeson
                      , base
                      , bytestring
                      , connection
                      , containers
-                     , haskube-client
                      , haskube
                      , http-client
                      , http-client-tls
@@ -43,6 +43,7 @@ executable haskube-client
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       aeson
+                     , aeson-pretty
                      , lens-aeson
                      , base
                      , bytestring

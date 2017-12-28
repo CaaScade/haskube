@@ -1,55 +1,75 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
 import           Control.Applicative
-import           Control.Lens                  ((.~), (?~), (^?), _Just)
+import           Control.Lens                  (view, (&), (.~), (?~), (^?),
+                                                _Just)
 import           Control.Monad
+import Control.Monad.IO.Class
 import           Control.Monad.Except
+import           Control.Monad.Reader
 import           Control.Monad.Trans.Maybe
 
 import qualified Data.Aeson                    as AE
+import qualified Data.Aeson.Encode.Pretty      as AE
 import           Data.Aeson.Lens               (key, nth, _String)
 import qualified Data.Aeson.Lens               as AE
 import           Data.ByteString               (ByteString)
 import qualified Data.ByteString               as B
-import qualified Data.ByteString.Lazy          as BL
+import qualified Data.ByteString.Lazy.Char8    as BL
 import           Data.Monoid
+import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           Data.Text.Encoding            (encodeUtf8)
 import qualified Data.Yaml                     as Y
 
 import           Network.Connection            (TLSSettings (..))
-import           Network.HTTP.Client           (newManager)
+import           Network.HTTP.Client           (Manager, newManager)
 import           Network.HTTP.Client.TLS
 import           Network.Wreq
 import           System.Environment            (getEnv)
-import           Turtle
+import qualified Turtle                        as SH
 
-import qualified Apimachinery.Pkg.Apis.Meta.V1 as K
+import qualified Api.Core.V1                   as KCore
+import qualified Apimachinery.Pkg.Apis.Meta.V1 as KMeta
 import           Lib
 
 main :: IO ()
 main = do
-  result <- fmap join . single . runMaybeT $ script
+  result <- fmap join . SH.single . runMaybeT $ script
   case result of Nothing -> print "Oh no!"
                  Just (server, token) -> do
                    print server
                    print token
-                   print =<< runExceptT (doot server token)
+                   runApp server token $ do
+                     printJSON =<< runExceptT (postNamespace testNamespace)
+                     printJSON =<< runExceptT (getNamespace "haskube-test-ns")
+                     printJSON =<< runExceptT (putNamespace "haskube-test-ns" testNamespace)
+                     printJSON =<< runExceptT (getNamespace "haskube-test-ns")
+                     printJSON =<< runExceptT (deleteNamespace "haskube-test-ns")
+                     printJSON =<< runExceptT (getNamespace "haskube-test-ns")
+
+data Env = Env { _envServer  :: Text
+               , _envOptions :: Options
+               , _envManager :: Manager
+               }
+
+type AppM = ReaderT Env IO
 
 getToken :: MonadIO m => Text -> MaybeT m Text
 getToken secretId = MaybeT $ do
-  getToken_ <- single . grep (prefix "token") $ inproc "kubectl" ["describe", "secret", secretId] empty
-  let token = head . tail . T.words . lineToText <$> getToken_
+  getToken_ <- SH.single . SH.grep (SH.prefix "token") $ SH.inproc "kubectl" ["describe", "secret", secretId] empty
+  let token = head . tail . T.words . SH.lineToText <$> getToken_
   return token
 
 getSecretId :: MonadIO m => MaybeT m Text
 getSecretId = do
-  gotSecret <- MaybeT $ single $ grep (has "default") $ inproc "kubectl" ["get", "secrets"] empty
-  let secretId = head . T.words . lineToText $ gotSecret
+  gotSecret <- MaybeT $ SH.single $ SH.grep (SH.has "default") $ SH.inproc "kubectl" ["get", "secrets"] empty
+  let secretId = head . T.words . SH.lineToText $ gotSecret
   return secretId
 
 getServer :: forall m. MonadIO m => MaybeT m Text
@@ -60,7 +80,7 @@ getServer = MaybeT $ do
   config_ <- liftIO . Y.decodeFile $ file :: m (Maybe Y.Value)
   return $ config_ ^? _Just . l
 
-script :: MaybeT Shell (Text, Text)
+script :: MaybeT SH.Shell (Text, Text)
 script = do
   secretId <- getSecretId
   token <- getToken secretId
@@ -71,12 +91,74 @@ mkOptions :: Text -> Options
 mkOptions token =
   defaults & auth ?~ oauth2Bearer (encodeUtf8 token)
 
-doot :: Text -> Text -> ExceptT JSONError IO (Response K.APIVersions)
-doot server token = do
-  let manSets = mkManagerSettings (TLSSettingsSimple True False False) Nothing
-  man <- liftIO $ newManager manSets
+runApp :: Text -> Text -> AppM a -> IO a
+runApp server token action = do
+  let settings = mkManagerSettings (TLSSettingsSimple True False False) Nothing
+  man <- newManager settings
   let opts = defaults
         & auth ?~ oauth2Bearer (encodeUtf8 token)
         & manager .~ Right man
-  r <- liftIO $ getWith opts $ T.unpack server <> "/api"
+      env = Env { _envServer = server
+                , _envOptions = opts
+                , _envManager = man
+                }
+  runReaderT action env
+
+getNamespace :: Text -> ExceptT JSONError AppM (Response KCore.Namespace)
+getNamespace nsName = do
+  Env{..} <- ask
+  let address = T.unpack $ _envServer <> "/api/v1/namespaces/" <> nsName
+  r <- liftIO $ getWith _envOptions $ address
   asJSON r
+
+postNamespace :: KCore.Namespace -> ExceptT JSONError AppM (Response KCore.Namespace)
+postNamespace namespace = do
+  Env{..} <- ask
+  let address = T.unpack $ _envServer <> "/api/v1/namespaces"
+  r <- liftIO $ postWith _envOptions address $ AE.toJSON namespace
+  asJSON r
+
+putNamespace :: Text -> KCore.Namespace -> ExceptT JSONError AppM (Response KCore.Namespace)
+putNamespace nsName namespace = do
+  Env{..} <- ask
+  let address = T.unpack $ _envServer <> "/api/v1/namespaces/" <> nsName
+  r <- liftIO $ putWith _envOptions address $ AE.toJSON namespace
+  asJSON r
+
+deleteNamespace :: Text -> ExceptT JSONError AppM (Response KCore.Namespace)
+deleteNamespace nsName = do
+  Env{..} <- ask
+  let address = T.unpack $ _envServer <> "/api/v1/namespaces/" <> nsName
+  r <- liftIO $ deleteWith _envOptions $ address
+  asJSON r
+
+testNamespace :: KCore.Namespace
+testNamespace = KCore.Namespace{ _apiVersion = Just "v1"
+                               , _kind = Just "Namespace"
+                               , _metadata = Just metadata
+                               , _spec = Nothing
+                               , _status = Nothing
+                               }
+  where metadata = defaultObjectMeta{ KMeta._name = Just "haskube-test-ns"} :: KMeta.ObjectMeta
+
+printJSON  :: (MonadIO m, AE.ToJSON a) => Either JSONError (Response a) -> m ()
+printJSON (Left err) = liftIO $ print err
+printJSON (Right result) = liftIO . BL.putStrLn . AE.encodePretty . view responseBody $ result
+
+defaultObjectMeta :: KMeta.ObjectMeta
+defaultObjectMeta = KMeta.ObjectMeta{KMeta._generateName = Nothing,
+                             KMeta._annotations = Nothing,
+                             KMeta._deletionTimestamp = Nothing,
+                             KMeta._uid = Nothing,
+                             KMeta._deletionGracePeriodSeconds = Nothing,
+                             KMeta._resourceVersion = Nothing,
+                             KMeta._finalizers = Nothing,
+                             KMeta._namespace = Nothing,
+                             KMeta._ownerReferences = Nothing,
+                             KMeta._initializers = Nothing,
+                             KMeta._selfLink = Nothing,
+                             KMeta._name = Nothing,
+                             KMeta._creationTimestamp = Nothing,
+                             KMeta._clusterName = Nothing,
+                             KMeta._labels = Nothing,
+                             KMeta._generation = Nothing}
