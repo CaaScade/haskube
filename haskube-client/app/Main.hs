@@ -1,7 +1,7 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 module Main where
 
@@ -9,11 +9,12 @@ import           Control.Applicative
 import           Control.Lens                  (view, (&), (.~), (?~), (^?),
                                                 _Just)
 import           Control.Monad
-import Control.Monad.IO.Class
 import           Control.Monad.Except
+import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Maybe
 
+import Data.Maybe (fromMaybe)
 import qualified Data.Aeson                    as AE
 import qualified Data.Aeson.Encode.Pretty      as AE
 import           Data.Aeson.Lens               (key, nth, _String)
@@ -21,11 +22,15 @@ import qualified Data.Aeson.Lens               as AE
 import           Data.ByteString               (ByteString)
 import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy.Char8    as BL
+import           Data.Foldable                 (foldl')
+import           Data.Map                      (Map)
+import qualified Data.Map                      as M
 import           Data.Monoid
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           Data.Text.Encoding            (encodeUtf8)
 import qualified Data.Yaml                     as Y
+import qualified Data.HashMap.Strict as HS
 
 import           Network.Connection            (TLSSettings (..))
 import           Network.HTTP.Client           (Manager, newManager)
@@ -48,7 +53,7 @@ main = do
                    runApp server token $ do
                      printJSON =<< runExceptT (postNamespace testNamespace)
                      printJSON =<< runExceptT (getNamespace "haskube-test-ns")
-                     printJSON =<< runExceptT (putNamespace "haskube-test-ns" testNamespace)
+                     printJSON =<< runExceptT (putNamespace "haskube-test-ns" testNamespace2)
                      printJSON =<< runExceptT (getNamespace "haskube-test-ns")
                      printJSON =<< runExceptT (deleteNamespace "haskube-test-ns")
                      printJSON =<< runExceptT (getNamespace "haskube-test-ns")
@@ -104,6 +109,21 @@ runApp server token action = do
                 }
   runReaderT action env
 
+getPods :: ExceptT JSONError AppM (Response KCore.PodList)
+getPods = do
+  Env{..} <- ask
+  let address = T.unpack $ _envServer <> "/api/v1/pods"
+  r <- liftIO $ getWith _envOptions $ address
+  asJSON r
+
+getPodsInNamespace :: Text -> ExceptT JSONError AppM (Response KCore.PodList)
+getPodsInNamespace nsName = do
+  Env{..} <- ask
+  let address = T.unpack $ _envServer <> "/api/v1/namespaces/" <> nsName <> "/pods"
+  r <- liftIO $ getWith _envOptions $ address
+  asJSON r
+
+
 getNamespace :: Text -> ExceptT JSONError AppM (Response KCore.Namespace)
 getNamespace nsName = do
   Env{..} <- ask
@@ -132,6 +152,14 @@ deleteNamespace nsName = do
   r <- liftIO $ deleteWith _envOptions $ address
   asJSON r
 
+testNamespace2 :: KCore.Namespace
+testNamespace2 = testNamespace { KCore._metadata = Just metadata } :: KCore.Namespace
+  where metadata = oldMeta {KMeta._labels = mkLabels $ HS.singleton "key" "value"} :: KMeta.ObjectMeta
+        oldMeta = fromMaybe defaultObjectMeta $ (KCore._metadata :: (KCore.Namespace -> Maybe KMeta.ObjectMeta)) testNamespace
+
+mkLabels :: HS.HashMap Text Text -> Maybe KMeta.ObjectMeta_labels
+mkLabels = Just . KMeta.ObjectMeta_labels
+
 testNamespace :: KCore.Namespace
 testNamespace = KCore.Namespace{ _apiVersion = Just "v1"
                                , _kind = Just "Namespace"
@@ -144,6 +172,16 @@ testNamespace = KCore.Namespace{ _apiVersion = Just "v1"
 printJSON  :: (MonadIO m, AE.ToJSON a) => Either JSONError (Response a) -> m ()
 printJSON (Left err) = liftIO $ print err
 printJSON (Right result) = liftIO . BL.putStrLn . AE.encodePretty . view responseBody $ result
+
+  {-
+podsByNamespace :: KCore.PodList -> Map Text [KCore.Pod]
+podsByNamespace list =
+  foldl' f M.empty $ KCore._items list
+  where f dict pod = case M.lookup namespace dict of
+                       Just pods -> M.insert namespace (pod:pods) dict
+                       Nothing   -> M.insert namespace [pod] dict
+          where namespace = KMeta._namespace . KCore._metadata $ pod
+-}
 
 defaultObjectMeta :: KMeta.ObjectMeta
 defaultObjectMeta = KMeta.ObjectMeta{KMeta._generateName = Nothing,
