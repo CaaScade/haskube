@@ -42,15 +42,31 @@ import qualified Turtle                        as SH
 import qualified Api.Core.V1                   as KCore
 import qualified Apimachinery.Pkg.Apis.Meta.V1 as KMeta
 import           Lib
+import qualified KubeAuth as K
+import qualified KubeConfig as K
 
 main :: IO ()
 main = do
+  mAuthContext <- runMaybeT K.getDefaultAuthContext
+  case mAuthContext of
+    Nothing -> putStrLn "couldn't load auth context"
+    Just authContext -> do
+      let authHeader = K.getAuthHeader authContext
+      print authHeader
+      runApp (K._authHost authContext) authHeader $ do
+        printJSON =<< runExceptT (postNamespace testNamespace)
+        printJSON =<< runExceptT (getNamespace "haskube-test-ns")
+        printJSON =<< runExceptT (deleteNamespace "haskube-test-ns")
+
+turtleMain :: IO ()
+turtleMain = do
   result <- fmap join . SH.single . runMaybeT $ script
   case result of Nothing -> print "Oh no!"
                  Just (server, token) -> do
                    print server
                    print token
-                   runApp server token $ do
+                   let authHeader = oauth2Bearer $ encodeUtf8 token
+                   runApp server authHeader $ do
                      printJSON =<< runExceptT (postNamespace testNamespace)
                      printJSON =<< runExceptT (getNamespace "haskube-test-ns")
                      printJSON =<< runExceptT (putNamespace "haskube-test-ns" testNamespace2)
@@ -96,12 +112,12 @@ mkOptions :: Text -> Options
 mkOptions token =
   defaults & auth ?~ oauth2Bearer (encodeUtf8 token)
 
-runApp :: Text -> Text -> AppM a -> IO a
-runApp server token action = do
+runApp :: Text -> Auth -> AppM a -> IO a
+runApp server authHeader action = do
   let settings = mkManagerSettings (TLSSettingsSimple True False False) Nothing
   man <- newManager settings
   let opts = defaults
-        & auth ?~ oauth2Bearer (encodeUtf8 token)
+        & auth ?~ authHeader
         & manager .~ Right man
       env = Env { _envServer = server
                 , _envOptions = opts
