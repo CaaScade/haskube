@@ -44,35 +44,30 @@ import qualified Apimachinery.Pkg.Apis.Meta.V1 as KMeta
 import           Lib
 import qualified KubeAuth as K
 import qualified KubeConfig as K
+import qualified KubeTurtle as KT
 
 main :: IO ()
-main = do
+main = defaultConfigRunApp $ do
+  printJSON =<< runExceptT (postNamespace testNamespace)
+  printJSON =<< runExceptT (getNamespace "haskube-test-ns")
+  printJSON =<< runExceptT (deleteNamespace "haskube-test-ns")
+
+defaultConfigRunApp :: AppM a -> IO a
+defaultConfigRunApp action = do
   mAuthContext <- runMaybeT K.getDefaultAuthContext
   case mAuthContext of
-    Nothing -> putStrLn "couldn't load auth context"
+    Nothing -> error "couldn't load auth context"
     Just authContext -> do
       let authHeader = K.getAuthHeader authContext
-      print authHeader
-      runApp (K._authHost authContext) authHeader $ do
-        printJSON =<< runExceptT (postNamespace testNamespace)
-        printJSON =<< runExceptT (getNamespace "haskube-test-ns")
-        printJSON =<< runExceptT (deleteNamespace "haskube-test-ns")
+      runApp (K._authHost authContext) authHeader action
 
-turtleMain :: IO ()
-turtleMain = do
-  result <- fmap join . SH.single . runMaybeT $ script
-  case result of Nothing -> print "Oh no!"
+turtleRunApp :: AppM a -> IO a
+turtleRunApp action = do
+  result <- KT.getServerToken
+  case result of Nothing -> error "Oh no!"
                  Just (server, token) -> do
-                   print server
-                   print token
                    let authHeader = oauth2Bearer $ encodeUtf8 token
-                   runApp server authHeader $ do
-                     printJSON =<< runExceptT (postNamespace testNamespace)
-                     printJSON =<< runExceptT (getNamespace "haskube-test-ns")
-                     printJSON =<< runExceptT (putNamespace "haskube-test-ns" testNamespace2)
-                     printJSON =<< runExceptT (getNamespace "haskube-test-ns")
-                     printJSON =<< runExceptT (deleteNamespace "haskube-test-ns")
-                     printJSON =<< runExceptT (getNamespace "haskube-test-ns")
+                   runApp server authHeader action
 
 data Env = Env { _envServer  :: Text
                , _envOptions :: Options
@@ -80,37 +75,6 @@ data Env = Env { _envServer  :: Text
                }
 
 type AppM = ReaderT Env IO
-
-getToken :: MonadIO m => Text -> MaybeT m Text
-getToken secretId = MaybeT $ do
-  getToken_ <- SH.single . SH.grep (SH.prefix "token") $ SH.inproc "kubectl" ["describe", "secret", secretId] empty
-  let token = head . tail . T.words . SH.lineToText <$> getToken_
-  return token
-
-getSecretId :: MonadIO m => MaybeT m Text
-getSecretId = do
-  gotSecret <- MaybeT $ SH.single $ SH.grep (SH.has "default") $ SH.inproc "kubectl" ["get", "secrets"] empty
-  let secretId = head . T.words . SH.lineToText $ gotSecret
-  return secretId
-
-getServer :: forall m. MonadIO m => MaybeT m Text
-getServer = MaybeT $ do
-  home <- liftIO $ getEnv "HOME"
-  let file = home <> "/.kube/config"
-  let l = key "clusters" . nth 0 . key "cluster" . key "server" . _String
-  config_ <- liftIO . Y.decodeFile $ file :: m (Maybe Y.Value)
-  return $ config_ ^? _Just . l
-
-script :: MaybeT SH.Shell (Text, Text)
-script = do
-  secretId <- getSecretId
-  token <- getToken secretId
-  server <- getServer
-  return (server, token)
-
-mkOptions :: Text -> Options
-mkOptions token =
-  defaults & auth ?~ oauth2Bearer (encodeUtf8 token)
 
 runApp :: Text -> Auth -> AppM a -> IO a
 runApp server authHeader action = do
